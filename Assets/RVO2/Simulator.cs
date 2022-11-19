@@ -181,6 +181,14 @@ namespace RVO
             return agent.id_;
         }
 
+        internal int NewObstacle()
+        {
+            Obstacle obstacle = new Obstacle();
+            obstacle.id_ = this.obstacles_.Count;
+            this.obstacles_.Add(obstacle);
+            return obstacle.id_;
+        }
+
         /**
          * <summary>Adds a new obstacle to the simulation.</summary>
          *
@@ -205,19 +213,22 @@ namespace RVO
 
             for (int i = 0; i < vertices.Count; ++i)
             {
-                Obstacle obstacle = new Obstacle();
+                int obstacleIndex = this.NewObstacle();
+                Obstacle obstacle = this.obstacles_[obstacleIndex];
                 obstacle.point_ = vertices[i];
 
                 if (i != 0)
                 {
-                    obstacle.previous_ = this.obstacles_[this.obstacles_.Count - 1];
-                    obstacle.previous_.next_ = obstacle;
+                    obstacle.previousIndex_ = obstacleIndex - 1;
+                    Obstacle previous_ = this.obstacles_[obstacle.previousIndex_];
+                    previous_.nextIndex_ = obstacleIndex;
                 }
 
                 if (i == vertices.Count - 1)
                 {
-                    obstacle.next_ = this.obstacles_[obstacleNo];
-                    obstacle.next_.previous_ = obstacle;
+                    obstacle.nextIndex_ = obstacleNo;
+                    Obstacle next_ = this.obstacles_[obstacleNo];
+                    next_.previousIndex_ = obstacleNo;
                 }
 
                 obstacle.direction_ = math.normalize(vertices[i == vertices.Count - 1 ? 0 : i + 1] - vertices[i]);
@@ -231,8 +242,8 @@ namespace RVO
                     obstacle.convex_ = RVOMath.leftOf(vertices[i == 0 ? vertices.Count - 1 : i - 1], vertices[i], vertices[i == vertices.Count - 1 ? 0 : i + 1]) >= 0.0f;
                 }
 
-                obstacle.id_ = this.obstacles_.Count;
-                this.obstacles_.Add(obstacle);
+                // obstacle.id_ = this.obstacles_.Count;
+                // this.obstacles_.Add(obstacle);
             }
 
             return obstacleNo;
@@ -287,7 +298,6 @@ namespace RVO
         internal void buildObstacleTree()
         {
             this.kdTree_.obstacleTreeIndex_ = this.kdTree_.NewObstacleTreeNode();
-            // this.kdTree_.obstacleTree_ = this.kdTree_.obstacleTreeNodes_[this.kdTree_.obstacleTreeIndex_];
 
             IList<int> obstacles = new List<int>(this.obstacles_.Count);
 
@@ -369,17 +379,7 @@ namespace RVO
             }
         }
 
-        internal int buildObstacleTreeRecursive(IList<int> obstaclesIndex)
-        {
-            List<Obstacle> obstacles = new List<Obstacle>(obstaclesIndex.Count);
-            foreach (var index in obstaclesIndex)
-            {
-                obstacles.Add(this.obstacles_[index]);
-            }
-
-            return buildObstacleTreeRecursive(obstacles);
-        }
-
+        
         /**
          * <summary>Recursive method for building an obstacle k-D tree.
          * </summary>
@@ -388,7 +388,7 @@ namespace RVO
          *
          * <param name="obstacles">A list of obstacles.</param>
          */
-        internal int buildObstacleTreeRecursive(IList<Obstacle> obstacles)
+        internal int buildObstacleTreeRecursive(IList<int> obstacles)
         {
             if (obstacles.Count == 0)
             {
@@ -407,8 +407,10 @@ namespace RVO
                 int leftSize = 0;
                 int rightSize = 0;
 
-                Obstacle obstacleI1 = obstacles[i];
-                Obstacle obstacleI2 = obstacleI1.next_;
+                int obstacleI1Index = obstacles[i];
+                Obstacle obstacleI1 = this.obstacles_[obstacleI1Index];
+                int obstacleI2Index = obstacleI1.nextIndex_;
+                Obstacle obstacleI2 = this.obstacles_[obstacleI2Index];
 
                 /* Compute optimal split node. */
                 for (int j = 0; j < obstacles.Count; ++j)
@@ -418,8 +420,10 @@ namespace RVO
                         continue;
                     }
 
-                    Obstacle obstacleJ1 = obstacles[j];
-                    Obstacle obstacleJ2 = obstacleJ1.next_;
+                    int obstacleJ1Index = obstacles[j];
+                    Obstacle obstacleJ1 = this.obstacles_[obstacleJ1Index];
+                    int obstacleJ2Index = obstacleJ1.nextIndex_;
+                    Obstacle obstacleJ2 = this.obstacles_[obstacleJ2Index];
 
                     float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
                     float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
@@ -460,26 +464,28 @@ namespace RVO
 
             {
                 /* Build split node. */
-                IList<Obstacle> leftObstacles = new List<Obstacle>(minLeft);
+                IList<int> leftObstacles = new List<int>(minLeft);
 
                 for (int n = 0; n < minLeft; ++n)
                 {
-                    leftObstacles.Add(null);
+                    leftObstacles.Add(-1);
                 }
 
-                IList<Obstacle> rightObstacles = new List<Obstacle>(minRight);
+                IList<int> rightObstacles = new List<int>(minRight);
 
                 for (int n = 0; n < minRight; ++n)
                 {
-                    rightObstacles.Add(null);
+                    rightObstacles.Add(-1);
                 }
 
                 int leftCounter = 0;
                 int rightCounter = 0;
                 int i = optimalSplit;
 
-                Obstacle obstacleI1 = obstacles[i];
-                Obstacle obstacleI2 = obstacleI1.next_;
+                int obstacleI1Index = obstacles[i];
+                Obstacle obstacleI1 = this.obstacles_[obstacleI1Index];
+                int obstacleI2Index = obstacleI1.nextIndex_;
+                Obstacle obstacleI2 = this.obstacles_[obstacleI2Index];
 
                 for (int j = 0; j < obstacles.Count; ++j)
                 {
@@ -488,8 +494,10 @@ namespace RVO
                         continue;
                     }
 
-                    Obstacle obstacleJ1 = obstacles[j];
-                    Obstacle obstacleJ2 = obstacleJ1.next_;
+                    int obstacleJ1Index = obstacles[j];
+                    Obstacle obstacleJ1 = this.obstacles_[obstacleJ1Index];
+                    int obstacleJ2Index = obstacleJ1.nextIndex_;
+                    Obstacle obstacleJ2 = this.obstacles_[obstacleJ2Index];
 
                     float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
                     float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
@@ -509,29 +517,30 @@ namespace RVO
 
                         float2 splitPoint = obstacleJ1.point_ + (t * (obstacleJ2.point_ - obstacleJ1.point_));
 
-                        Obstacle newObstacle = new Obstacle();
+                        int newObstacleIndex = this.NewObstacle();
+                        Obstacle newObstacle = this.obstacles_[newObstacleIndex];
                         newObstacle.point_ = splitPoint;
-                        newObstacle.previous_ = obstacleJ1;
-                        newObstacle.next_ = obstacleJ2;
+                        newObstacle.previousIndex_ = obstacleJ1Index;
+                        newObstacle.nextIndex_ = obstacleJ2Index;
                         newObstacle.convex_ = true;
                         newObstacle.direction_ = obstacleJ1.direction_;
 
-                        newObstacle.id_ = this.obstacles_.Count;
+                        // newObstacle.id_ = this.obstacles_.Count;
 
-                        this.obstacles_.Add(newObstacle);
+                        // this.obstacles_.Add(newObstacle);
 
-                        obstacleJ1.next_ = newObstacle;
-                        obstacleJ2.previous_ = newObstacle;
+                        obstacleJ1.nextIndex_ = newObstacleIndex;
+                        obstacleJ2.previousIndex_ = newObstacleIndex;
 
                         if (j1LeftOfI > 0.0f)
                         {
-                            leftObstacles[leftCounter++] = obstacleJ1;
-                            rightObstacles[rightCounter++] = newObstacle;
+                            leftObstacles[leftCounter++] = obstacleJ1Index;
+                            rightObstacles[rightCounter++] = newObstacleIndex;
                         }
                         else
                         {
-                            rightObstacles[rightCounter++] = obstacleJ1;
-                            leftObstacles[leftCounter++] = newObstacle;
+                            rightObstacles[rightCounter++] = obstacleJ1Index;
+                            leftObstacles[leftCounter++] = newObstacleIndex;
                         }
                     }
                 }
@@ -560,8 +569,8 @@ namespace RVO
             JobHandle jobHandle1 = new computeJob().Schedule(1, 1, jobHandle0);
             for (int agentNo = 0; agentNo < this.agents_.Count; ++agentNo)
             {
-                this.agents_[agentNo].computeNeighbors(this.kdTree_);
-                this.agents_[agentNo].computeNewVelocity(this.timeStep_);
+                this.agents_[agentNo].computeNeighbors(this.kdTree_, this.agents_, this.obstacles_);
+                this.agents_[agentNo].computeNewVelocity(this.timeStep_, this.agents_, this.obstacles_);
             }
 
             // job2
@@ -855,7 +864,7 @@ namespace RVO
          */
         public int getNextObstacleVertexNo(int vertexNo)
         {
-            return this.obstacles_[vertexNo].next_.id_;
+            return this.obstacles_[vertexNo].nextIndex_;
         }
 
         /**
@@ -870,7 +879,7 @@ namespace RVO
          */
         public int getPrevObstacleVertexNo(int vertexNo)
         {
-            return this.obstacles_[vertexNo].previous_.id_;
+            return this.obstacles_[vertexNo].previousIndex_;
         }
 
         /**
@@ -911,7 +920,7 @@ namespace RVO
          */
         public bool queryVisibility(float2 point1, float2 point2, float radius)
         {
-            return this.kdTree_.queryVisibility(point1, point2, radius);
+            return this.kdTree_.queryVisibility(point1, point2, radius, obstacles_);
         }
 
         /**
