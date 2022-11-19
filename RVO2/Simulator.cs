@@ -44,6 +44,8 @@ namespace RVO
 {
     using System.Collections.Generic;
     using System.Threading;
+    using Unity.Collections;
+    using Unity.Jobs;
     using Unity.Mathematics;
 
     /**
@@ -51,59 +53,27 @@ namespace RVO
      */
     public class Simulator
     {
-        /**
-         * <summary>Defines a worker.</summary>
-         */
-        private class Worker
+        private struct buildJob : IJob
         {
-            private readonly ManualResetEvent doneEvent_;
-            private readonly int end_;
-            private readonly int start_;
-
-            /**
-             * <summary>Constructs and initializes a worker.</summary>
-             *
-             * <param name="start">Start.</param>
-             * <param name="end">End.</param>
-             * <param name="doneEvent">Done event.</param>
-             */
-            internal Worker(int start, int end, ManualResetEvent doneEvent)
+            public void Execute()
             {
-                this.start_ = start;
-                this.end_ = end;
-                this.doneEvent_ = doneEvent;
+
             }
+        }
 
-            /**
-             * <summary>Performs a simulation step.</summary>
-             *
-             * <param name="_">Unused.</param>
-             */
-            internal void step(object _)
+        private struct computeJob : IJobParallelFor
+        {
+            public void Execute(int index)
             {
-                for (int agentNo = this.start_; agentNo < this.end_; ++agentNo)
-                {
-                    Simulator.Instance.agents_[agentNo].computeNeighbors();
-                    Simulator.Instance.agents_[agentNo].computeNewVelocity();
-                }
 
-                this.doneEvent_.Set();
             }
+        }
 
-            /**
-             * <summary>updates the two-dimensional position and
-             * two-dimensional velocity of each agent.</summary>
-             *
-             * <param name="_">Unused.</param>
-             */
-            internal void update(object _)
+        private struct updateJob : IJobParallelFor
+        {
+            public void Execute(int index)
             {
-                for (int agentNo = this.start_; agentNo < this.end_; ++agentNo)
-                {
-                    Simulator.Instance.agents_[agentNo].update();
-                }
 
-                this.doneEvent_.Set();
             }
         }
 
@@ -112,26 +82,18 @@ namespace RVO
         internal KdTree kdTree_;
         internal float timeStep_;
 
-        private static readonly Simulator instance_ = new Simulator();
-
         private Agent defaultAgent_;
-        private ManualResetEvent[] doneEvents_;
-        private Worker[] workers_;
-        private int numWorkers_;
-        private float globalTime_;
 
-        public static Simulator Instance
-        {
-            get
-            {
-                return instance_;
-            }
-        }
+        private int numWorkers_;
+
+        private JobHandle jobHandle;
+
+        private float globalTime_;
 
         /**
          * <summary>Constructs and initializes a simulation.</summary>
          */
-        private Simulator()
+        public Simulator()
         {
             this.Clear();
         }
@@ -292,46 +254,314 @@ namespace RVO
         }
 
         /**
+         * <summary>Builds an agent k-D tree.</summary>
+         */
+        internal void buildAgentTree()
+        {
+            if (this.kdTree_.agents_ == null || this.kdTree_.agents_.Length != this.agents_.Count)
+            {
+                this.kdTree_.agents_ = new Agent[this.agents_.Count];
+
+                for (int i = 0; i < this.kdTree_.agents_.Length; ++i)
+                {
+                    this.kdTree_.agents_[i] = this.agents_[i];
+                }
+
+                this.kdTree_.agentTree_ = new KdTree.AgentTreeNode[2 * this.kdTree_.agents_.Length];
+
+                for (int i = 0; i < this.kdTree_.agentTree_.Length; ++i)
+                {
+                    this.kdTree_.agentTree_[i] = default(KdTree.AgentTreeNode);
+                }
+            }
+
+            if (this.kdTree_.agents_.Length != 0)
+            {
+                this.buildAgentTreeRecursive(0, this.kdTree_.agents_.Length, 0);
+            }
+        }
+
+        /**
+         * <summary>Builds an obstacle k-D tree.</summary>
+         */
+        internal void buildObstacleTree()
+        {
+            this.kdTree_.obstacleTree_ = new KdTree.ObstacleTreeNode();
+
+            IList<Obstacle> obstacles = new List<Obstacle>(this.obstacles_.Count);
+
+            for (int i = 0; i < this.obstacles_.Count; ++i)
+            {
+                obstacles.Add(this.obstacles_[i]);
+            }
+
+            this.kdTree_.obstacleTree_ = this.buildObstacleTreeRecursive(obstacles);
+        }
+
+        /**
+         * <summary>Recursive method for building an agent k-D tree.</summary>
+         *
+         * <param name="begin">The beginning agent k-D tree node node index.
+         * </param>
+         * <param name="end">The ending agent k-D tree node index.</param>
+         * <param name="node">The current agent k-D tree node index.</param>
+         */
+        internal void buildAgentTreeRecursive(int begin, int end, int node)
+        {
+            this.kdTree_.agentTree_[node].begin_ = begin;
+            this.kdTree_.agentTree_[node].end_ = end;
+            this.kdTree_.agentTree_[node].minX_ = this.kdTree_.agentTree_[node].maxX_ = this.kdTree_.agents_[begin].position_.x;
+            this.kdTree_.agentTree_[node].minY_ = this.kdTree_.agentTree_[node].maxY_ = this.kdTree_.agents_[begin].position_.y;
+
+            for (int i = begin + 1; i < end; ++i)
+            {
+                this.kdTree_.agentTree_[node].maxX_ = math.max(this.kdTree_.agentTree_[node].maxX_, this.kdTree_.agents_[i].position_.x);
+                this.kdTree_.agentTree_[node].minX_ = math.min(this.kdTree_.agentTree_[node].minX_, this.kdTree_.agents_[i].position_.x);
+                this.kdTree_.agentTree_[node].maxY_ = math.max(this.kdTree_.agentTree_[node].maxY_, this.kdTree_.agents_[i].position_.y);
+                this.kdTree_.agentTree_[node].minY_ = math.min(this.kdTree_.agentTree_[node].minY_, this.kdTree_.agents_[i].position_.y);
+            }
+
+            if (end - begin > KdTree.MAX_LEAF_SIZE)
+            {
+                /* No leaf node. */
+                bool isVertical = this.kdTree_.agentTree_[node].maxX_ - this.kdTree_.agentTree_[node].minX_ > this.kdTree_.agentTree_[node].maxY_ - this.kdTree_.agentTree_[node].minY_;
+                float splitValue = 0.5f * (isVertical ? this.kdTree_.agentTree_[node].maxX_ + this.kdTree_.agentTree_[node].minX_ : this.kdTree_.agentTree_[node].maxY_ + this.kdTree_.agentTree_[node].minY_);
+
+                int left = begin;
+                int right = end;
+
+                while (left < right)
+                {
+                    while (left < right && (isVertical ? this.kdTree_.agents_[left].position_.x : this.kdTree_.agents_[left].position_.y) < splitValue)
+                    {
+                        ++left;
+                    }
+
+                    while (right > left && (isVertical ? this.kdTree_.agents_[right - 1].position_.x : this.kdTree_.agents_[right - 1].position_.y) >= splitValue)
+                    {
+                        --right;
+                    }
+
+                    if (left < right)
+                    {
+                        Agent tempAgent = this.kdTree_.agents_[left];
+                        this.kdTree_.agents_[left] = this.kdTree_.agents_[right - 1];
+                        this.kdTree_.agents_[right - 1] = tempAgent;
+                        ++left;
+                        --right;
+                    }
+                }
+
+                int leftSize = left - begin;
+
+                if (leftSize == 0)
+                {
+                    ++leftSize;
+                    ++left;
+                }
+
+                this.kdTree_.agentTree_[node].left_ = node + 1;
+                this.kdTree_.agentTree_[node].right_ = node + (2 * leftSize);
+
+                this.buildAgentTreeRecursive(begin, left, this.kdTree_.agentTree_[node].left_);
+                this.buildAgentTreeRecursive(left, end, this.kdTree_.agentTree_[node].right_);
+            }
+        }
+
+        /**
+         * <summary>Recursive method for building an obstacle k-D tree.
+         * </summary>
+         *
+         * <returns>An obstacle k-D tree node.</returns>
+         *
+         * <param name="obstacles">A list of obstacles.</param>
+         */
+        internal KdTree.ObstacleTreeNode buildObstacleTreeRecursive(IList<Obstacle> obstacles)
+        {
+            if (obstacles.Count == 0)
+            {
+                return null;
+            }
+
+            KdTree.ObstacleTreeNode node = new KdTree.ObstacleTreeNode();
+
+            int optimalSplit = 0;
+            int minLeft = obstacles.Count;
+            int minRight = obstacles.Count;
+
+            for (int i = 0; i < obstacles.Count; ++i)
+            {
+                int leftSize = 0;
+                int rightSize = 0;
+
+                Obstacle obstacleI1 = obstacles[i];
+                Obstacle obstacleI2 = obstacleI1.next_;
+
+                /* Compute optimal split node. */
+                for (int j = 0; j < obstacles.Count; ++j)
+                {
+                    if (i == j)
+                    {
+                        continue;
+                    }
+
+                    Obstacle obstacleJ1 = obstacles[j];
+                    Obstacle obstacleJ2 = obstacleJ1.next_;
+
+                    float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
+                    float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
+
+                    if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
+                    {
+                        ++leftSize;
+                    }
+                    else if (j1LeftOfI <= RVOMath.RVO_EPSILON && j2LeftOfI <= RVOMath.RVO_EPSILON)
+                    {
+                        ++rightSize;
+                    }
+                    else
+                    {
+                        ++leftSize;
+                        ++rightSize;
+                    }
+
+                    float2 bound1 = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
+                    float2 bound2 = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
+
+                    if (RVOMath.greaterequal(bound1, bound2))
+                    {
+                        break;
+                    }
+                }
+
+                float2 bound1f = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
+                float2 bound2f = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
+
+                if (RVOMath.less(bound1f, bound2f))
+                {
+                    minLeft = leftSize;
+                    minRight = rightSize;
+                    optimalSplit = i;
+                }
+            }
+
+            {
+                /* Build split node. */
+                IList<Obstacle> leftObstacles = new List<Obstacle>(minLeft);
+
+                for (int n = 0; n < minLeft; ++n)
+                {
+                    leftObstacles.Add(null);
+                }
+
+                IList<Obstacle> rightObstacles = new List<Obstacle>(minRight);
+
+                for (int n = 0; n < minRight; ++n)
+                {
+                    rightObstacles.Add(null);
+                }
+
+                int leftCounter = 0;
+                int rightCounter = 0;
+                int i = optimalSplit;
+
+                Obstacle obstacleI1 = obstacles[i];
+                Obstacle obstacleI2 = obstacleI1.next_;
+
+                for (int j = 0; j < obstacles.Count; ++j)
+                {
+                    if (i == j)
+                    {
+                        continue;
+                    }
+
+                    Obstacle obstacleJ1 = obstacles[j];
+                    Obstacle obstacleJ2 = obstacleJ1.next_;
+
+                    float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
+                    float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
+
+                    if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
+                    {
+                        leftObstacles[leftCounter++] = obstacles[j];
+                    }
+                    else if (j1LeftOfI <= RVOMath.RVO_EPSILON && j2LeftOfI <= RVOMath.RVO_EPSILON)
+                    {
+                        rightObstacles[rightCounter++] = obstacles[j];
+                    }
+                    else
+                    {
+                        /* Split obstacle j. */
+                        float t = RVOMath.det(obstacleI2.point_ - obstacleI1.point_, obstacleJ1.point_ - obstacleI1.point_) / RVOMath.det(obstacleI2.point_ - obstacleI1.point_, obstacleJ1.point_ - obstacleJ2.point_);
+
+                        float2 splitPoint = obstacleJ1.point_ + (t * (obstacleJ2.point_ - obstacleJ1.point_));
+
+                        Obstacle newObstacle = new Obstacle();
+                        newObstacle.point_ = splitPoint;
+                        newObstacle.previous_ = obstacleJ1;
+                        newObstacle.next_ = obstacleJ2;
+                        newObstacle.convex_ = true;
+                        newObstacle.direction_ = obstacleJ1.direction_;
+
+                        newObstacle.id_ = this.obstacles_.Count;
+
+                        this.obstacles_.Add(newObstacle);
+
+                        obstacleJ1.next_ = newObstacle;
+                        obstacleJ2.previous_ = newObstacle;
+
+                        if (j1LeftOfI > 0.0f)
+                        {
+                            leftObstacles[leftCounter++] = obstacleJ1;
+                            rightObstacles[rightCounter++] = newObstacle;
+                        }
+                        else
+                        {
+                            rightObstacles[rightCounter++] = obstacleJ1;
+                            leftObstacles[leftCounter++] = newObstacle;
+                        }
+                    }
+                }
+
+                node.obstacle_ = obstacleI1;
+                node.left_ = this.buildObstacleTreeRecursive(leftObstacles);
+                node.right_ = this.buildObstacleTreeRecursive(rightObstacles);
+
+                return node;
+            }
+        }
+
+        /**
          * <summary>Performs a simulation step and updates the two-dimensional
          * position and two-dimensional velocity of each agent.</summary>
          *
          * <returns>The global time after the simulation step.</returns>
          */
-        public float doStep()
+        public JobHandle doStep()
         {
-            if (this.workers_ == null)
-            {
-                this.workers_ = new Worker[this.numWorkers_];
-                this.doneEvents_ = new ManualResetEvent[this.workers_.Length];
+            // job0
+            JobHandle jobHandle0 = new buildJob().Schedule();
+            this.buildAgentTree();
 
-                for (int block = 0; block < this.workers_.Length; ++block)
-                {
-                    this.doneEvents_[block] = new ManualResetEvent(false);
-                    this.workers_[block] = new Worker(block * this.getNumAgents() / this.workers_.Length, (block + 1) * this.getNumAgents() / this.workers_.Length, this.doneEvents_[block]);
-                }
+            // job1
+            JobHandle jobHandle1 = new computeJob().Schedule(1, 1, jobHandle0);
+            for (int agentNo = 0; agentNo < this.agents_.Count; ++agentNo)
+            {
+                this.agents_[agentNo].computeNeighbors(this.kdTree_);
+                this.agents_[agentNo].computeNewVelocity(this.timeStep_);
             }
 
-            this.kdTree_.buildAgentTree();
-
-            for (int block = 0; block < this.workers_.Length; ++block)
+            // job2
+            JobHandle jobHandle2 = new updateJob().Schedule(1, 1, jobHandle1);
+            for (int agentNo = 0; agentNo < this.agents_.Count; ++agentNo)
             {
-                this.doneEvents_[block].Reset();
-                ThreadPool.QueueUserWorkItem(this.workers_[block].step);
+                this.agents_[agentNo].update(this.timeStep_);
             }
-
-            WaitHandle.WaitAll(this.doneEvents_);
-
-            for (int block = 0; block < this.workers_.Length; ++block)
-            {
-                this.doneEvents_[block].Reset();
-                ThreadPool.QueueUserWorkItem(this.workers_[block].update);
-            }
-
-            WaitHandle.WaitAll(this.doneEvents_);
 
             this.globalTime_ += this.timeStep_;
 
-            return this.globalTime_;
+            this.jobHandle = jobHandle2;
+            return this.jobHandle;
         }
 
         /**
@@ -649,7 +879,7 @@ namespace RVO
          */
         public void processObstacles()
         {
-            this.kdTree_.buildObstacleTree();
+            this.buildObstacleTree();
         }
 
         /**
@@ -866,8 +1096,6 @@ namespace RVO
             {
                 ThreadPool.GetMinThreads(out this.numWorkers_, out _);
             }
-
-            this.workers_ = null;
         }
 
         /**

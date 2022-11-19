@@ -51,6 +51,7 @@ namespace RVO
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
 
@@ -58,6 +59,8 @@ namespace RVO
     {
         /* Store the goals of the agents. */
         private IList<float2> goals;
+
+        private Simulator simulator = new Simulator();
 
         private void Start()
         {
@@ -69,13 +72,13 @@ namespace RVO
             this.goals = new List<float2>();
 
             /* Specify the global time step of the simulation. */
-            Simulator.Instance.setTimeStep(0.25f);
+            this.simulator.setTimeStep(0.25f);
 
             /*
              * Specify the default parameters for agents that are subsequently
              * added.
              */
-            Simulator.Instance.setAgentDefaults(15.0f, 10, 10.0f, 10.0f, 1.5f, 2.0f, new float2(0.0f, 0.0f));
+            this.simulator.setAgentDefaults(15.0f, 10, 10.0f, 10.0f, 1.5f, 2.0f, new float2(0.0f, 0.0f));
 
             /*
              * Add agents, specifying their start position, and store their
@@ -83,34 +86,19 @@ namespace RVO
              */
             for (int i = 0; i < 250; ++i)
             {
-                Simulator.Instance.addAgent(200.0f *
+                this.simulator.addAgent(200.0f *
                     new float2(
                         (float)Math.Cos(i * 2.0f * Math.PI / 250.0f),
                         (float)Math.Sin(i * 2.0f * Math.PI / 250.0f)));
-                this.goals.Add(-Simulator.Instance.getAgentPosition(i));
+                this.goals.Add(-this.simulator.getAgentPosition(i));
             }
-        }
-
-        private void updateVisualization()
-        {
-            /* Output the current global time. */
-            Debug.Log(Simulator.Instance.getGlobalTime());
-
-            /* Output the current position of all the agents. */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
-            {
-                float2 position = Simulator.Instance.getAgentPosition(i);
-                Debug.Log($" {position}");
-            }
-
-            Debug.Log("\n");
         }
 
         private void OnDrawGizmos()
         {
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                float2 position = Simulator.Instance.getAgentPosition(i);
+                float2 position = this.simulator.getAgentPosition(i);
                 Gizmos.DrawSphere((Vector2)position, 1);
             }
         }
@@ -121,25 +109,25 @@ namespace RVO
              * Set the preferred velocity to be a vector of unit magnitude
              * (speed) in the direction of the goal.
              */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                float2 goalVector = this.goals[i] - Simulator.Instance.getAgentPosition(i);
+                float2 goalVector = this.goals[i] - this.simulator.getAgentPosition(i);
 
                 if (math.lengthsq(goalVector) > 1.0f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                Simulator.Instance.setAgentPrefVelocity(i, goalVector);
+                this.simulator.setAgentPrefVelocity(i, goalVector);
             }
         }
 
         private bool reachedGoal()
         {
             /* Check if all agents have reached their goals. */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                if (math.lengthsq(Simulator.Instance.getAgentPosition(i) - this.goals[i]) > Simulator.Instance.getAgentRadius(i) * Simulator.Instance.getAgentRadius(i))
+                if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > this.simulator.getAgentRadius(i) * this.simulator.getAgentRadius(i))
                 {
                     return false;
                 }
@@ -158,25 +146,26 @@ namespace RVO
                 /* Perform (and manipulate) the simulation. */
                 do
                 {
-                    // updateVisualization();
-
                     this.setPreferredVelocities();
-                    Simulator.Instance.doStep();
+
+                    JobHandle jobHandle = this.simulator.doStep();
 
                     yield return null;
+
+                    jobHandle.Complete();
                 }
                 while (!this.reachedGoal());
 
                 yield return new WaitForSeconds(1);
 
-                Simulator.Instance.Clear();
+                this.simulator.Clear();
             }
             while (true);
         }
 
         private void OnDestroy()
         {
-            Simulator.Instance.Clear();
+            this.simulator.Clear();
         }
     }
 }

@@ -70,25 +70,25 @@ namespace RVO
         /**
          * <summary>Computes the neighbors of this agent.</summary>
          */
-        internal void computeNeighbors()
+        internal void computeNeighbors(KdTree kdTree)
         {
             this.obstacleNeighbors_.Clear();
             float rangeSq = RVOMath.sqr((this.timeHorizonObst_ * this.maxSpeed_) + this.radius_);
-            Simulator.Instance.kdTree_.computeObstacleNeighbors(this, rangeSq);
+            kdTree.computeObstacleNeighbors(this, rangeSq);
 
             this.agentNeighbors_.Clear();
 
             if (this.maxNeighbors_ > 0)
             {
                 rangeSq = RVOMath.sqr(this.neighborDist_);
-                Simulator.Instance.kdTree_.computeAgentNeighbors(this, ref rangeSq);
+                kdTree.computeAgentNeighbors(this, ref rangeSq);
             }
         }
 
         /**
          * <summary>Computes the new velocity of this agent.</summary>
          */
-        internal void computeNewVelocity()
+        internal void computeNewVelocity(float timeStep)
         {
             this.orcaLines_.Clear();
 
@@ -406,7 +406,7 @@ namespace RVO
                 else
                 {
                     /* Collision. Project on cut-off circle of time timeStep. */
-                    float invTimeStep = 1.0f / Simulator.Instance.timeStep_;
+                    float invTimeStep = 1.0f / timeStep;
 
                     /* Vector from cutoff center to relative velocity. */
                     float2 w = relativeVelocity - (invTimeStep * relativePosition);
@@ -502,10 +502,10 @@ namespace RVO
          * <summary>Updates the two-dimensional position and two-dimensional
          * velocity of this agent.</summary>
          */
-        internal void update()
+        internal void update(float timeStep)
         {
             this.velocity_ = this.newVelocity_;
-            this.position_ += this.velocity_ * Simulator.Instance.timeStep_;
+            this.position_ += this.velocity_ * timeStep;
         }
 
         /**
@@ -560,12 +560,12 @@ namespace RVO
                 if (denominator >= 0.0f)
                 {
                     /* Line i bounds line lineNo on the right. */
-                    tRight = Math.Min(tRight, t);
+                    tRight = math.min(tRight, t);
                 }
                 else
                 {
                     /* Line i bounds line lineNo on the left. */
-                    tLeft = Math.Max(tLeft, t);
+                    tLeft = math.max(tLeft, t);
                 }
 
                 if (tLeft > tRight)
