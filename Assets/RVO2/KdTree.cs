@@ -67,18 +67,27 @@ namespace RVO
             internal float minY_;
         }
 
+        internal int NewObstacleTreeNode()
+        {
+            ObstacleTreeNode node = new ObstacleTreeNode();
+            int oldLen = obstacleTreeNodes_.Length;
+            Array.Resize(ref obstacleTreeNodes_, oldLen + 1);
+            obstacleTreeNodes_[oldLen] = node;
+            return oldLen;
+        }
+
         /**
          * <summary>Defines a node of an obstacle k-D tree.</summary>
          */
         internal class ObstacleTreeNode
         {
             internal Obstacle obstacle_;
-            internal ObstacleTreeNode left_;
-            internal ObstacleTreeNode right_;
+            // internal ObstacleTreeNode left_;
+            // internal ObstacleTreeNode right_;
 
             internal int obstacleIndex_;
-            internal int leftIndex_;
-            internal int rightIndex_;
+            internal int leftIndex_ = -1;
+            internal int rightIndex_ = -1;
         }
 
         /**
@@ -88,7 +97,10 @@ namespace RVO
 
         internal Agent[] agents_;
         internal AgentTreeNode[] agentTree_;
-        internal ObstacleTreeNode obstacleTree_;
+        // internal ObstacleTreeNode obstacleTree_;
+
+        internal ObstacleTreeNode[] obstacleTreeNodes_ = Array.Empty<ObstacleTreeNode>();
+        internal int obstacleTreeIndex_ = -1;
 
         /**
          * <summary>Computes the agent neighbors of the specified agent.
@@ -113,7 +125,7 @@ namespace RVO
          */
         internal void computeObstacleNeighbors(Agent agent, float rangeSq)
         {
-            this.queryObstacleTreeRecursive(agent, rangeSq, this.obstacleTree_);
+            this.queryObstacleTreeRecursive(agent, rangeSq, this.obstacleTreeIndex_);
         }
 
         /**
@@ -132,7 +144,7 @@ namespace RVO
          */
         internal bool queryVisibility(float2 q1, float2 q2, float radius)
         {
-            return this.queryVisibilityRecursive(q1, q2, radius, this.obstacleTree_);
+            return this.queryVisibilityRecursive(q1, q2, radius, this.obstacleTreeIndex_);
         }
 
         /**
@@ -191,6 +203,17 @@ namespace RVO
             }
         }
 
+        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex)
+        {
+            ObstacleTreeNode node = null;
+            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Length)
+            {
+                node = obstacleTreeNodes_[nodeIndex];
+            }
+
+            queryObstacleTreeRecursive(agent, rangeSq, node);
+        }
+
         /**
          * <summary>Recursive method for computing the obstacle neighbors of the
          * specified agent.</summary>
@@ -209,7 +232,7 @@ namespace RVO
 
                 float agentLeftOfLine = RVOMath.leftOf(obstacle1.point_, obstacle2.point_, agent.position_);
 
-                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.left_ : node.right_);
+                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.leftIndex_ : node.rightIndex_);
 
                 float distSqLine = RVOMath.sqr(agentLeftOfLine) / math.lengthsq(obstacle2.point_ - obstacle1.point_);
 
@@ -225,9 +248,20 @@ namespace RVO
                     }
 
                     /* Try other side of line. */
-                    this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.right_ : node.left_);
+                    this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.rightIndex_ : node.leftIndex_);
                 }
             }
+        }
+
+        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex)
+        {
+            ObstacleTreeNode node = null;
+            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Length)
+            {
+                node = obstacleTreeNodes_[nodeIndex];
+            }
+
+            return queryVisibilityRecursive(q1, q2, radius, node);
         }
 
         /**
@@ -261,25 +295,25 @@ namespace RVO
 
             if (q1LeftOfI >= 0.0f && q2LeftOfI >= 0.0f)
             {
-                return this.queryVisibilityRecursive(q1, q2, radius, node.left_) && ((RVOMath.sqr(q1LeftOfI) * invLengthI >= RVOMath.sqr(radius) && RVOMath.sqr(q2LeftOfI) * invLengthI >= RVOMath.sqr(radius)) || this.queryVisibilityRecursive(q1, q2, radius, node.right_));
+                return this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_) && ((RVOMath.sqr(q1LeftOfI) * invLengthI >= RVOMath.sqr(radius) && RVOMath.sqr(q2LeftOfI) * invLengthI >= RVOMath.sqr(radius)) || this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_));
             }
 
             if (q1LeftOfI <= 0.0f && q2LeftOfI <= 0.0f)
             {
-                return this.queryVisibilityRecursive(q1, q2, radius, node.right_) && ((RVOMath.sqr(q1LeftOfI) * invLengthI >= RVOMath.sqr(radius) && RVOMath.sqr(q2LeftOfI) * invLengthI >= RVOMath.sqr(radius)) || this.queryVisibilityRecursive(q1, q2, radius, node.left_));
+                return this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_) && ((RVOMath.sqr(q1LeftOfI) * invLengthI >= RVOMath.sqr(radius) && RVOMath.sqr(q2LeftOfI) * invLengthI >= RVOMath.sqr(radius)) || this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_));
             }
 
             if (q1LeftOfI >= 0.0f && q2LeftOfI <= 0.0f)
             {
                 /* One can see through obstacle from left to right. */
-                return this.queryVisibilityRecursive(q1, q2, radius, node.left_) && this.queryVisibilityRecursive(q1, q2, radius, node.right_);
+                return this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_) && this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_);
             }
 
             float point1LeftOfQ = RVOMath.leftOf(q1, q2, obstacle1.point_);
             float point2LeftOfQ = RVOMath.leftOf(q1, q2, obstacle2.point_);
             float invLengthQ = 1.0f / math.lengthsq(q2 - q1);
 
-            return point1LeftOfQ * point2LeftOfQ >= 0.0f && RVOMath.sqr(point1LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && RVOMath.sqr(point2LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && this.queryVisibilityRecursive(q1, q2, radius, node.left_) && this.queryVisibilityRecursive(q1, q2, radius, node.right_);
+            return point1LeftOfQ * point2LeftOfQ >= 0.0f && RVOMath.sqr(point1LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && RVOMath.sqr(point2LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_) && this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_);
         }
 
         public void Dispose()
@@ -294,9 +328,14 @@ namespace RVO
                 this.agentTree_ = null;
             }
 
-            if (this.obstacleTree_ != null)
+            // if (this.obstacleTree_ != null)
+            // {
+            //     this.obstacleTree_ = null;
+            // }
+
+            if (obstacleTreeNodes_ != null)
             {
-                this.obstacleTree_ = null;
+                obstacleTreeNodes_ = null;
             }
         }
     }
