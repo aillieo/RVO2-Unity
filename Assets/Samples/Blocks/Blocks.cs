@@ -52,6 +52,7 @@ namespace RVO
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
     using Random = System.Random;
@@ -63,6 +64,8 @@ namespace RVO
 
         /** Random number generator. */
         private Random random;
+
+        private Simulator simulator = new Simulator();
 
         private void Start()
         {
@@ -76,13 +79,13 @@ namespace RVO
             this.goals = new List<float2>();
 
             /* Specify the global time step of the simulation. */
-            Simulator.Instance.setTimeStep(0.25f);
+            this.simulator.setTimeStep(0.25f);
 
             /*
              * Specify the default parameters for agents that are subsequently
              * added.
              */
-            Simulator.Instance.setAgentDefaults(15.0f, 10, 5.0f, 5.0f, 2.0f, 2.0f, new float2(0.0f, 0.0f));
+            this.simulator.setAgentDefaults(15.0f, 10, 5.0f, 5.0f, 2.0f, 2.0f, new float2(0.0f, 0.0f));
 
             /*
              * Add agents, specifying their start position, and store their
@@ -92,16 +95,16 @@ namespace RVO
             {
                 for (int j = 0; j < 5; ++j)
                 {
-                    Simulator.Instance.addAgent(new float2(55.0f + (i * 10.0f), 55.0f + (j * 10.0f)));
+                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), 55.0f + (j * 10.0f)));
                     this.goals.Add(new float2(-75.0f, -75.0f));
 
-                    Simulator.Instance.addAgent(new float2(-55.0f - (i * 10.0f), 55.0f + (j * 10.0f)));
+                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), 55.0f + (j * 10.0f)));
                     this.goals.Add(new float2(75.0f, -75.0f));
 
-                    Simulator.Instance.addAgent(new float2(55.0f + (i * 10.0f), -55.0f - (j * 10.0f)));
+                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), -55.0f - (j * 10.0f)));
                     this.goals.Add(new float2(-75.0f, 75.0f));
 
-                    Simulator.Instance.addAgent(new float2(-55.0f - (i * 10.0f), -55.0f - (j * 10.0f)));
+                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), -55.0f - (j * 10.0f)));
                     this.goals.Add(new float2(75.0f, 75.0f));
                 }
             }
@@ -117,7 +120,7 @@ namespace RVO
                 new float2(-40.0f, 10.0f),
                 new float2(-10.0f, 10.0f),
             };
-            Simulator.Instance.addObstacle(obstacle1);
+            this.simulator.addObstacle(obstacle1);
 
             IList<float2> obstacle2 = new List<float2>
             {
@@ -126,7 +129,7 @@ namespace RVO
                 new float2(40.0f, 10.0f),
                 new float2(40.0f, 40.0f),
             };
-            Simulator.Instance.addObstacle(obstacle2);
+            this.simulator.addObstacle(obstacle2);
 
             IList<float2> obstacle3 = new List<float2>
             {
@@ -135,7 +138,7 @@ namespace RVO
                 new float2(40.0f, -10.0f),
                 new float2(10.0f, -10.0f),
             };
-            Simulator.Instance.addObstacle(obstacle3);
+            this.simulator.addObstacle(obstacle3);
 
             IList<float2> obstacle4 = new List<float2>
             {
@@ -144,45 +147,30 @@ namespace RVO
                 new float2(-40.0f, -10.0f),
                 new float2(-40.0f, -40.0f),
             };
-            Simulator.Instance.addObstacle(obstacle4);
+            this.simulator.addObstacle(obstacle4);
 
             /*
              * Process the obstacles so that they are accounted for in the
              * simulation.
              */
-            Simulator.Instance.processObstacles();
-        }
-
-        private void updateVisualization()
-        {
-            /* Output the current global time. */
-            Debug.Log(Simulator.Instance.getGlobalTime());
-
-            /* Output the current position of all the agents. */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
-            {
-                float2 position = Simulator.Instance.getAgentPosition(i);
-                Debug.Log($" {position}");
-            }
-
-            Debug.Log("\n");
+            this.simulator.processObstacles();
         }
 
         private void OnDrawGizmos()
         {
-            for (int i = 0; i < Simulator.Instance.getNumObstacleVertices(); ++i)
+            for (int i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
             {
-                float2 o = Simulator.Instance.getObstacleVertex(i);
+                float2 o = this.simulator.getObstacleVertex(i);
                 Gizmos.DrawSphere((Vector2)o, 1);
 
                 int last = i;
 
                 while (true)
                 {
-                    int next = Simulator.Instance.getNextObstacleVertexNo(last);
+                    int next = this.simulator.getNextObstacleVertexNo(last);
 
-                    float2 p0 = Simulator.Instance.getObstacleVertex(last);
-                    float2 p1 = Simulator.Instance.getObstacleVertex(next);
+                    float2 p0 = this.simulator.getObstacleVertex(last);
+                    float2 p1 = this.simulator.getObstacleVertex(next);
 
                     Gizmos.DrawLine((Vector2)p0, (Vector2)p1);
 
@@ -197,9 +185,9 @@ namespace RVO
                 i = last;
             }
 
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                float2 position = Simulator.Instance.getAgentPosition(i);
+                float2 position = this.simulator.getAgentPosition(i);
                 Gizmos.DrawSphere((Vector2)position, 1);
             }
         }
@@ -210,33 +198,33 @@ namespace RVO
              * Set the preferred velocity to be a vector of unit magnitude
              * (speed) in the direction of the goal.
              */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                float2 goalVector = this.goals[i] - Simulator.Instance.getAgentPosition(i);
+                float2 goalVector = this.goals[i] - this.simulator.getAgentPosition(i);
 
                 if (math.lengthsq(goalVector) > 1.0f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                Simulator.Instance.setAgentPrefVelocity(i, goalVector);
+                this.simulator.setAgentPrefVelocity(i, goalVector);
 
                 /* Perturb a little to avoid deadlocks due to perfect symmetry. */
                 float angle = (float)this.random.NextDouble() * 2.0f * (float)Math.PI;
                 float dist = (float)this.random.NextDouble() * 0.0001f;
 
-                Simulator.Instance.setAgentPrefVelocity(
+                this.simulator.setAgentPrefVelocity(
                     i,
-                    Simulator.Instance.getAgentPrefVelocity(i) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
+                    this.simulator.getAgentPrefVelocity(i) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
             }
         }
 
         private bool reachedGoal()
         {
             /* Check if all agents have reached their goals. */
-            for (int i = 0; i < Simulator.Instance.getNumAgents(); ++i)
+            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                if (math.lengthsq(Simulator.Instance.getAgentPosition(i) - this.goals[i]) > 400.0f)
+                if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > 400.0f)
                 {
                     return false;
                 }
@@ -255,25 +243,26 @@ namespace RVO
                 /* Perform (and manipulate) the simulation. */
                 do
                 {
-                    // updateVisualization();
-
                     this.setPreferredVelocities();
-                    Simulator.Instance.doStep();
+
+                    JobHandle jobHandle = this.simulator.doStep();
 
                     yield return null;
+
+                    jobHandle.Complete();
                 }
                 while (!this.reachedGoal());
 
                 yield return new WaitForSeconds(1);
 
-                Simulator.Instance.Clear();
+                this.simulator.Clear();
             }
             while (true);
         }
 
         private void OnDestroy()
         {
-            Simulator.Instance.Clear();
+            this.simulator.Clear();
         }
     }
 }

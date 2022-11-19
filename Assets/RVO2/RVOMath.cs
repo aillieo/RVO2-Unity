@@ -131,5 +131,66 @@ namespace RVO
         {
             return scalar * scalar;
         }
+
+        /**
+         * <summary>Returns true if the first pair of scalar values is less
+         * than the second pair of scalar values.</summary>
+         *
+         * <returns>True if the first pair of scalar values is less than the
+         * second pair of scalar values.</returns>
+         *
+         * <param name="a">The first pair of scalar values.</param>
+         * <param name="b">The second pair of scalar values.</param>
+         */
+        internal static bool less(float2 a, float2 b)
+        {
+            return a.x < b.x || (!(b.x < a.x) && a.y < b.y);
+        }
+
+        /**
+         * <summary>Returns true if the first pair of scalar values is less
+         * than or equal to the second pair of scalar values.</summary>
+         *
+         * <returns>True if the first pair of scalar values is less than or
+         * equal to the second pair of scalar values.</returns>
+         *
+         * <param name="a">The first pair of scalar values.</param>
+         * <param name="b">The second pair of scalar values.</param>
+         */
+        internal static bool lessequal(float2 a, float2 b)
+        {
+            return (a.x == b.x && a.y == b.y) || less(a, b);
+        }
+
+        /**
+         * <summary>Returns true if the first pair of scalar values is
+         * greater than the second pair of scalar values.</summary>
+         *
+         * <returns>True if the first pair of scalar values is greater than
+         * the second pair of scalar values.</returns>
+         *
+         * <param name="a">The first pair of scalar values.</param>
+         * <param name="b">The second pair of scalar values.</param>
+         */
+        internal static bool greater(float2 a, float2 b)
+        {
+            return !lessequal(a, b);
+        }
+
+        /**
+         * <summary>Returns true if the first pair of scalar values is
+         * greater than or equal to the second pair of scalar values.
+         * </summary>
+         *
+         * <returns>True if the first pair of scalar values is greater than
+         * or equal to the second pair of scalar values.</returns>
+         *
+         * <param name="a">The first pair of scalar values.</param>
+         * <param name="b">The second pair of scalar values.</param>
+         */
+        internal static bool greaterequal(float2 a, float2 b)
+        {
+            return !less(a, b);
+        }
     }
 }

@@ -50,12 +50,12 @@ namespace RVO
      * <summary>Defines k-D trees for agents and static obstacles in the
      * simulation.</summary>
      */
-    internal class KdTree
+    internal class KdTree : IDisposable
     {
         /**
          * <summary>Defines a node of an agent k-D tree.</summary>
          */
-        private struct AgentTreeNode
+        internal struct AgentTreeNode
         {
             internal int begin_;
             internal int end_;
@@ -68,151 +68,27 @@ namespace RVO
         }
 
         /**
-         * <summary>Defines a pair of scalar values.</summary>
-         */
-        private struct FloatPair
-        {
-            private readonly float a_;
-            private readonly float b_;
-
-            /**
-             * <summary>Constructs and initializes a pair of scalar
-             * values.</summary>
-             *
-             * <param name="a">The first scalar value.</returns>
-             * <param name="b">The second scalar value.</returns>
-             */
-            internal FloatPair(float a, float b)
-            {
-                this.a_ = a;
-                this.b_ = b;
-            }
-
-            /**
-             * <summary>Returns true if the first pair of scalar values is less
-             * than the second pair of scalar values.</summary>
-             *
-             * <returns>True if the first pair of scalar values is less than the
-             * second pair of scalar values.</returns>
-             *
-             * <param name="pair1">The first pair of scalar values.</param>
-             * <param name="pair2">The second pair of scalar values.</param>
-             */
-            public static bool operator <(FloatPair pair1, FloatPair pair2)
-            {
-                return pair1.a_ < pair2.a_ || (!(pair2.a_ < pair1.a_) && pair1.b_ < pair2.b_);
-            }
-
-            /**
-             * <summary>Returns true if the first pair of scalar values is less
-             * than or equal to the second pair of scalar values.</summary>
-             *
-             * <returns>True if the first pair of scalar values is less than or
-             * equal to the second pair of scalar values.</returns>
-             *
-             * <param name="pair1">The first pair of scalar values.</param>
-             * <param name="pair2">The second pair of scalar values.</param>
-             */
-            public static bool operator <=(FloatPair pair1, FloatPair pair2)
-            {
-                return (pair1.a_ == pair2.a_ && pair1.b_ == pair2.b_) || pair1 < pair2;
-            }
-
-            /**
-             * <summary>Returns true if the first pair of scalar values is
-             * greater than the second pair of scalar values.</summary>
-             *
-             * <returns>True if the first pair of scalar values is greater than
-             * the second pair of scalar values.</returns>
-             *
-             * <param name="pair1">The first pair of scalar values.</param>
-             * <param name="pair2">The second pair of scalar values.</param>
-             */
-            public static bool operator >(FloatPair pair1, FloatPair pair2)
-            {
-                return !(pair1 <= pair2);
-            }
-
-            /**
-             * <summary>Returns true if the first pair of scalar values is
-             * greater than or equal to the second pair of scalar values.
-             * </summary>
-             *
-             * <returns>True if the first pair of scalar values is greater than
-             * or equal to the second pair of scalar values.</returns>
-             *
-             * <param name="pair1">The first pair of scalar values.</param>
-             * <param name="pair2">The second pair of scalar values.</param>
-             */
-            public static bool operator >=(FloatPair pair1, FloatPair pair2)
-            {
-                return !(pair1 < pair2);
-            }
-        }
-
-        /**
          * <summary>Defines a node of an obstacle k-D tree.</summary>
          */
-        private class ObstacleTreeNode
+        internal class ObstacleTreeNode
         {
             internal Obstacle obstacle_;
             internal ObstacleTreeNode left_;
             internal ObstacleTreeNode right_;
+
+            internal int obstacleIndex_;
+            internal int leftIndex_;
+            internal int rightIndex_;
         }
 
         /**
          * <summary>The maximum size of an agent k-D tree leaf.</summary>
          */
-        private const int MAX_LEAF_SIZE = 10;
+        internal const int MAX_LEAF_SIZE = 10;
 
-        private Agent[] agents_;
-        private AgentTreeNode[] agentTree_;
-        private ObstacleTreeNode obstacleTree_;
-
-        /**
-         * <summary>Builds an agent k-D tree.</summary>
-         */
-        internal void buildAgentTree()
-        {
-            if (this.agents_ == null || this.agents_.Length != Simulator.Instance.agents_.Count)
-            {
-                this.agents_ = new Agent[Simulator.Instance.agents_.Count];
-
-                for (int i = 0; i < this.agents_.Length; ++i)
-                {
-                    this.agents_[i] = Simulator.Instance.agents_[i];
-                }
-
-                this.agentTree_ = new AgentTreeNode[2 * this.agents_.Length];
-
-                for (int i = 0; i < this.agentTree_.Length; ++i)
-                {
-                    this.agentTree_[i] = default(AgentTreeNode);
-                }
-            }
-
-            if (this.agents_.Length != 0)
-            {
-                this.buildAgentTreeRecursive(0, this.agents_.Length, 0);
-            }
-        }
-
-        /**
-         * <summary>Builds an obstacle k-D tree.</summary>
-         */
-        internal void buildObstacleTree()
-        {
-            this.obstacleTree_ = new ObstacleTreeNode();
-
-            IList<Obstacle> obstacles = new List<Obstacle>(Simulator.Instance.obstacles_.Count);
-
-            for (int i = 0; i < Simulator.Instance.obstacles_.Count; ++i)
-            {
-                obstacles.Add(Simulator.Instance.obstacles_[i]);
-            }
-
-            this.obstacleTree_ = this.buildObstacleTreeRecursive(obstacles);
-        }
+        internal Agent[] agents_;
+        internal AgentTreeNode[] agentTree_;
+        internal ObstacleTreeNode obstacleTree_;
 
         /**
          * <summary>Computes the agent neighbors of the specified agent.
@@ -260,233 +136,6 @@ namespace RVO
         }
 
         /**
-         * <summary>Recursive method for building an agent k-D tree.</summary>
-         *
-         * <param name="begin">The beginning agent k-D tree node node index.
-         * </param>
-         * <param name="end">The ending agent k-D tree node index.</param>
-         * <param name="node">The current agent k-D tree node index.</param>
-         */
-        private void buildAgentTreeRecursive(int begin, int end, int node)
-        {
-            this.agentTree_[node].begin_ = begin;
-            this.agentTree_[node].end_ = end;
-            this.agentTree_[node].minX_ = this.agentTree_[node].maxX_ = this.agents_[begin].position_.x;
-            this.agentTree_[node].minY_ = this.agentTree_[node].maxY_ = this.agents_[begin].position_.y;
-
-            for (int i = begin + 1; i < end; ++i)
-            {
-                this.agentTree_[node].maxX_ = Math.Max(this.agentTree_[node].maxX_, this.agents_[i].position_.x);
-                this.agentTree_[node].minX_ = Math.Min(this.agentTree_[node].minX_, this.agents_[i].position_.x);
-                this.agentTree_[node].maxY_ = Math.Max(this.agentTree_[node].maxY_, this.agents_[i].position_.y);
-                this.agentTree_[node].minY_ = Math.Min(this.agentTree_[node].minY_, this.agents_[i].position_.y);
-            }
-
-            if (end - begin > MAX_LEAF_SIZE)
-            {
-                /* No leaf node. */
-                bool isVertical = this.agentTree_[node].maxX_ - this.agentTree_[node].minX_ > this.agentTree_[node].maxY_ - this.agentTree_[node].minY_;
-                float splitValue = 0.5f * (isVertical ? this.agentTree_[node].maxX_ + this.agentTree_[node].minX_ : this.agentTree_[node].maxY_ + this.agentTree_[node].minY_);
-
-                int left = begin;
-                int right = end;
-
-                while (left < right)
-                {
-                    while (left < right && (isVertical ? this.agents_[left].position_.x : this.agents_[left].position_.y) < splitValue)
-                    {
-                        ++left;
-                    }
-
-                    while (right > left && (isVertical ? this.agents_[right - 1].position_.x : this.agents_[right - 1].position_.y) >= splitValue)
-                    {
-                        --right;
-                    }
-
-                    if (left < right)
-                    {
-                        Agent tempAgent = this.agents_[left];
-                        this.agents_[left] = this.agents_[right - 1];
-                        this.agents_[right - 1] = tempAgent;
-                        ++left;
-                        --right;
-                    }
-                }
-
-                int leftSize = left - begin;
-
-                if (leftSize == 0)
-                {
-                    ++leftSize;
-                    ++left;
-                }
-
-                this.agentTree_[node].left_ = node + 1;
-                this.agentTree_[node].right_ = node + (2 * leftSize);
-
-                this.buildAgentTreeRecursive(begin, left, this.agentTree_[node].left_);
-                this.buildAgentTreeRecursive(left, end, this.agentTree_[node].right_);
-            }
-        }
-
-        /**
-         * <summary>Recursive method for building an obstacle k-D tree.
-         * </summary>
-         *
-         * <returns>An obstacle k-D tree node.</returns>
-         *
-         * <param name="obstacles">A list of obstacles.</param>
-         */
-        private ObstacleTreeNode buildObstacleTreeRecursive(IList<Obstacle> obstacles)
-        {
-            if (obstacles.Count == 0)
-            {
-                return null;
-            }
-
-            ObstacleTreeNode node = new ObstacleTreeNode();
-
-            int optimalSplit = 0;
-            int minLeft = obstacles.Count;
-            int minRight = obstacles.Count;
-
-            for (int i = 0; i < obstacles.Count; ++i)
-            {
-                int leftSize = 0;
-                int rightSize = 0;
-
-                Obstacle obstacleI1 = obstacles[i];
-                Obstacle obstacleI2 = obstacleI1.next_;
-
-                /* Compute optimal split node. */
-                for (int j = 0; j < obstacles.Count; ++j)
-                {
-                    if (i == j)
-                    {
-                        continue;
-                    }
-
-                    Obstacle obstacleJ1 = obstacles[j];
-                    Obstacle obstacleJ2 = obstacleJ1.next_;
-
-                    float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
-                    float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
-
-                    if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
-                    {
-                        ++leftSize;
-                    }
-                    else if (j1LeftOfI <= RVOMath.RVO_EPSILON && j2LeftOfI <= RVOMath.RVO_EPSILON)
-                    {
-                        ++rightSize;
-                    }
-                    else
-                    {
-                        ++leftSize;
-                        ++rightSize;
-                    }
-
-                    if (new FloatPair(Math.Max(leftSize, rightSize), Math.Min(leftSize, rightSize)) >= new FloatPair(Math.Max(minLeft, minRight), Math.Min(minLeft, minRight)))
-                    {
-                        break;
-                    }
-                }
-
-                if (new FloatPair(Math.Max(leftSize, rightSize), Math.Min(leftSize, rightSize)) < new FloatPair(Math.Max(minLeft, minRight), Math.Min(minLeft, minRight)))
-                {
-                    minLeft = leftSize;
-                    minRight = rightSize;
-                    optimalSplit = i;
-                }
-            }
-
-            {
-                /* Build split node. */
-                IList<Obstacle> leftObstacles = new List<Obstacle>(minLeft);
-
-                for (int n = 0; n < minLeft; ++n)
-                {
-                    leftObstacles.Add(null);
-                }
-
-                IList<Obstacle> rightObstacles = new List<Obstacle>(minRight);
-
-                for (int n = 0; n < minRight; ++n)
-                {
-                    rightObstacles.Add(null);
-                }
-
-                int leftCounter = 0;
-                int rightCounter = 0;
-                int i = optimalSplit;
-
-                Obstacle obstacleI1 = obstacles[i];
-                Obstacle obstacleI2 = obstacleI1.next_;
-
-                for (int j = 0; j < obstacles.Count; ++j)
-                {
-                    if (i == j)
-                    {
-                        continue;
-                    }
-
-                    Obstacle obstacleJ1 = obstacles[j];
-                    Obstacle obstacleJ2 = obstacleJ1.next_;
-
-                    float j1LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ1.point_);
-                    float j2LeftOfI = RVOMath.leftOf(obstacleI1.point_, obstacleI2.point_, obstacleJ2.point_);
-
-                    if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
-                    {
-                        leftObstacles[leftCounter++] = obstacles[j];
-                    }
-                    else if (j1LeftOfI <= RVOMath.RVO_EPSILON && j2LeftOfI <= RVOMath.RVO_EPSILON)
-                    {
-                        rightObstacles[rightCounter++] = obstacles[j];
-                    }
-                    else
-                    {
-                        /* Split obstacle j. */
-                        float t = RVOMath.det(obstacleI2.point_ - obstacleI1.point_, obstacleJ1.point_ - obstacleI1.point_) / RVOMath.det(obstacleI2.point_ - obstacleI1.point_, obstacleJ1.point_ - obstacleJ2.point_);
-
-                        float2 splitPoint = obstacleJ1.point_ + (t * (obstacleJ2.point_ - obstacleJ1.point_));
-
-                        Obstacle newObstacle = new Obstacle();
-                        newObstacle.point_ = splitPoint;
-                        newObstacle.previous_ = obstacleJ1;
-                        newObstacle.next_ = obstacleJ2;
-                        newObstacle.convex_ = true;
-                        newObstacle.direction_ = obstacleJ1.direction_;
-
-                        newObstacle.id_ = Simulator.Instance.obstacles_.Count;
-
-                        Simulator.Instance.obstacles_.Add(newObstacle);
-
-                        obstacleJ1.next_ = newObstacle;
-                        obstacleJ2.previous_ = newObstacle;
-
-                        if (j1LeftOfI > 0.0f)
-                        {
-                            leftObstacles[leftCounter++] = obstacleJ1;
-                            rightObstacles[rightCounter++] = newObstacle;
-                        }
-                        else
-                        {
-                            rightObstacles[rightCounter++] = obstacleJ1;
-                            leftObstacles[leftCounter++] = newObstacle;
-                        }
-                    }
-                }
-
-                node.obstacle_ = obstacleI1;
-                node.left_ = this.buildObstacleTreeRecursive(leftObstacles);
-                node.right_ = this.buildObstacleTreeRecursive(rightObstacles);
-
-                return node;
-            }
-        }
-
-        /**
          * <summary>Recursive method for computing the agent neighbors of the
          * specified agent.</summary>
          *
@@ -506,8 +155,14 @@ namespace RVO
             }
             else
             {
-                float distSqLeft = RVOMath.sqr(Math.Max(0.0f, this.agentTree_[this.agentTree_[node].left_].minX_ - agent.position_.x)) + RVOMath.sqr(Math.Max(0.0f, agent.position_.x - this.agentTree_[this.agentTree_[node].left_].maxX_)) + RVOMath.sqr(Math.Max(0.0f, this.agentTree_[this.agentTree_[node].left_].minY_ - agent.position_.y)) + RVOMath.sqr(Math.Max(0.0f, agent.position_.y - this.agentTree_[this.agentTree_[node].left_].maxY_));
-                float distSqRight = RVOMath.sqr(Math.Max(0.0f, this.agentTree_[this.agentTree_[node].right_].minX_ - agent.position_.x)) + RVOMath.sqr(Math.Max(0.0f, agent.position_.x - this.agentTree_[this.agentTree_[node].right_].maxX_)) + RVOMath.sqr(Math.Max(0.0f, this.agentTree_[this.agentTree_[node].right_].minY_ - agent.position_.y)) + RVOMath.sqr(Math.Max(0.0f, agent.position_.y - this.agentTree_[this.agentTree_[node].right_].maxY_));
+                float distSqLeft = RVOMath.sqr(math.max(0.0f, this.agentTree_[this.agentTree_[node].left_].minX_ - agent.position_.x))
+                    + RVOMath.sqr(math.max(0.0f, agent.position_.x - this.agentTree_[this.agentTree_[node].left_].maxX_))
+                    + RVOMath.sqr(math.max(0.0f, this.agentTree_[this.agentTree_[node].left_].minY_ - agent.position_.y))
+                    + RVOMath.sqr(math.max(0.0f, agent.position_.y - this.agentTree_[this.agentTree_[node].left_].maxY_));
+                float distSqRight = RVOMath.sqr(math.max(0.0f, this.agentTree_[this.agentTree_[node].right_].minX_ - agent.position_.x))
+                    + RVOMath.sqr(math.max(0.0f, agent.position_.x - this.agentTree_[this.agentTree_[node].right_].maxX_))
+                    + RVOMath.sqr(math.max(0.0f, this.agentTree_[this.agentTree_[node].right_].minY_ - agent.position_.y))
+                    + RVOMath.sqr(math.max(0.0f, agent.position_.y - this.agentTree_[this.agentTree_[node].right_].maxY_));
 
                 if (distSqLeft < distSqRight)
                 {
@@ -625,6 +280,24 @@ namespace RVO
             float invLengthQ = 1.0f / math.lengthsq(q2 - q1);
 
             return point1LeftOfQ * point2LeftOfQ >= 0.0f && RVOMath.sqr(point1LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && RVOMath.sqr(point2LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && this.queryVisibilityRecursive(q1, q2, radius, node.left_) && this.queryVisibilityRecursive(q1, q2, radius, node.right_);
+        }
+
+        public void Dispose()
+        {
+            if (this.agents_ != null)
+            {
+                this.agents_ = null;
+            }
+
+            if (this.agentTree_ != null)
+            {
+                this.agentTree_ = null;
+            }
+
+            if (this.obstacleTree_ != null)
+            {
+                this.obstacleTree_ = null;
+            }
         }
     }
 }
