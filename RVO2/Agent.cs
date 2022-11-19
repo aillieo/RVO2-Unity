@@ -70,11 +70,11 @@ namespace RVO
         /**
          * <summary>Computes the neighbors of this agent.</summary>
          */
-        internal void computeNeighbors(KdTree kdTree)
+        internal void computeNeighbors(KdTree kdTree, IList<Agent> agents, IList<Obstacle> obstacles)
         {
             this.obstacleNeighbors_.Clear();
             float rangeSq = RVOMath.sqr((this.timeHorizonObst_ * this.maxSpeed_) + this.radius_);
-            kdTree.computeObstacleNeighbors(this, rangeSq);
+            kdTree.computeObstacleNeighbors(this, rangeSq, obstacles);
 
             this.agentNeighbors_.Clear();
 
@@ -88,7 +88,7 @@ namespace RVO
         /**
          * <summary>Computes the new velocity of this agent.</summary>
          */
-        internal void computeNewVelocity(float timeStep)
+        internal void computeNewVelocity(float timeStep, IList<Agent> agents, IList<Obstacle> obstacles)
         {
             this.orcaLines_.Clear();
 
@@ -98,7 +98,8 @@ namespace RVO
             for (int i = 0; i < this.obstacleNeighbors_.Count; ++i)
             {
                 Obstacle obstacle1 = this.obstacleNeighbors_[i].Value;
-                Obstacle obstacle2 = obstacle1.next_;
+                int obstacle2Index = obstacle1.nextIndex_;
+                Obstacle obstacle2 = obstacles[obstacle2Index];
 
                 float2 relativePosition1 = obstacle1.point_ - this.position_;
                 float2 relativePosition2 = obstacle2.point_ - this.position_;
@@ -249,7 +250,8 @@ namespace RVO
                  * velocity projected on "foreign" leg, no constraint is added.
                  */
 
-                Obstacle leftNeighbor = obstacle1.previous_;
+                int leftNeighborIndex = obstacle1.previousIndex_;
+                Obstacle leftNeighbor = obstacles[leftNeighborIndex];
 
                 bool isLeftLegForeign = false;
                 bool isRightLegForeign = false;
@@ -476,9 +478,10 @@ namespace RVO
          * inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertObstacleNeighbor(Obstacle obstacle, float rangeSq)
+        internal void insertObstacleNeighbor(Obstacle obstacle, float rangeSq, IList<Obstacle> obstacles)
         {
-            Obstacle nextObstacle = obstacle.next_;
+            int nextObstacleIndex = obstacle.nextIndex_;
+            Obstacle nextObstacle = obstacles[nextObstacleIndex];
 
             float distSq = RVOMath.distSqPointLineSegment(obstacle.point_, nextObstacle.point_, this.position_);
 
