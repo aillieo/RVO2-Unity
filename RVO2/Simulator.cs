@@ -286,16 +286,17 @@ namespace RVO
          */
         internal void buildObstacleTree()
         {
-            this.kdTree_.obstacleTree_ = new KdTree.ObstacleTreeNode();
+            this.kdTree_.obstacleTreeIndex_ = this.kdTree_.NewObstacleTreeNode();
+            // this.kdTree_.obstacleTree_ = this.kdTree_.obstacleTreeNodes_[this.kdTree_.obstacleTreeIndex_];
 
-            IList<Obstacle> obstacles = new List<Obstacle>(this.obstacles_.Count);
+            IList<int> obstacles = new List<int>(this.obstacles_.Count);
 
             for (int i = 0; i < this.obstacles_.Count; ++i)
             {
-                obstacles.Add(this.obstacles_[i]);
+                obstacles.Add(i);
             }
 
-            this.kdTree_.obstacleTree_ = this.buildObstacleTreeRecursive(obstacles);
+            this.kdTree_.obstacleTreeIndex_ = this.buildObstacleTreeRecursive(obstacles);
         }
 
         /**
@@ -368,6 +369,17 @@ namespace RVO
             }
         }
 
+        internal int buildObstacleTreeRecursive(IList<int> obstaclesIndex)
+        {
+            List<Obstacle> obstacles = new List<Obstacle>(obstaclesIndex.Count);
+            foreach (var index in obstaclesIndex)
+            {
+                obstacles.Add(this.obstacles_[index]);
+            }
+
+            return buildObstacleTreeRecursive(obstacles);
+        }
+
         /**
          * <summary>Recursive method for building an obstacle k-D tree.
          * </summary>
@@ -376,14 +388,15 @@ namespace RVO
          *
          * <param name="obstacles">A list of obstacles.</param>
          */
-        internal KdTree.ObstacleTreeNode buildObstacleTreeRecursive(IList<Obstacle> obstacles)
+        internal int buildObstacleTreeRecursive(IList<Obstacle> obstacles)
         {
             if (obstacles.Count == 0)
             {
-                return null;
+                return -1;
             }
 
-            KdTree.ObstacleTreeNode node = new KdTree.ObstacleTreeNode();
+            int nodeIndex = this.kdTree_.NewObstacleTreeNode();
+            KdTree.ObstacleTreeNode node = kdTree_.obstacleTreeNodes_[nodeIndex];
 
             int optimalSplit = 0;
             int minLeft = obstacles.Count;
@@ -524,10 +537,10 @@ namespace RVO
                 }
 
                 node.obstacle_ = obstacleI1;
-                node.left_ = this.buildObstacleTreeRecursive(leftObstacles);
-                node.right_ = this.buildObstacleTreeRecursive(rightObstacles);
+                node.leftIndex_ = this.buildObstacleTreeRecursive(leftObstacles);
+                node.rightIndex_ = this.buildObstacleTreeRecursive(rightObstacles);
 
-                return node;
+                return nodeIndex;
             }
         }
 
