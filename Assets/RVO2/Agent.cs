@@ -56,7 +56,7 @@ namespace RVO
         }
 
         internal readonly List<KeyValuePair<float, Agent>> agentNeighbors_ = new List<KeyValuePair<float, Agent>>();
-        internal readonly List<KeyValuePair<float, Obstacle>> obstacleNeighbors_ = new List<KeyValuePair<float, Obstacle>>();
+        internal readonly List<KeyValuePair<float, int>> obstacleNeighbors_ = new List<KeyValuePair<float, int>>();
         internal readonly List<Line> orcaLines_ = new List<Line>();
         internal float2 position_;
         internal float2 prefVelocity_;
@@ -85,7 +85,7 @@ namespace RVO
             if (this.maxNeighbors_ > 0)
             {
                 rangeSq = RVOMath.sqr(this.neighborDist_);
-                kdTree.computeAgentNeighbors(this, ref rangeSq);
+                kdTree.computeAgentNeighbors(this.id_, ref rangeSq, agents);
             }
         }
 
@@ -101,7 +101,8 @@ namespace RVO
             /* Create obstacle ORCA lines. */
             for (int i = 0; i < this.obstacleNeighbors_.Count; ++i)
             {
-                Obstacle obstacle1 = this.obstacleNeighbors_[i].Value;
+                int obstacle1Index = this.obstacleNeighbors_[i].Value;
+                Obstacle obstacle1 = obstacles[obstacle1Index];
                 int obstacle2Index = obstacle1.nextIndex_;
                 Obstacle obstacle2 = obstacles[obstacle2Index];
 
@@ -282,11 +283,11 @@ namespace RVO
                 /* Project current velocity on velocity obstacle. */
 
                 /* Check if current velocity is projected on cutoff circles. */
-                float t = obstacle1 == obstacle2 ? 0.5f : math.dot(this.velocity_ - leftCutOff, cutOffVector) / math.lengthsq(cutOffVector);
+                float t = obstacle1.id_ == obstacle2.id_ ? 0.5f : math.dot(this.velocity_ - leftCutOff, cutOffVector) / math.lengthsq(cutOffVector);
                 float tLeft = math.dot(this.velocity_ - leftCutOff, leftLegDirection);
                 float tRight = math.dot(this.velocity_ - rightCutOff, rightLegDirection);
 
-                if ((t < 0.0f && tLeft < 0.0f) || (obstacle1 == obstacle2 && tLeft < 0.0f && tRight < 0.0f))
+                if ((t < 0.0f && tLeft < 0.0f) || (obstacle1.id_ == obstacle2.id_ && tLeft < 0.0f && tRight < 0.0f))
                 {
                     /* Project on left cut-off circle. */
                     float2 unitW = math.normalize(this.velocity_ - leftCutOff);
@@ -313,7 +314,7 @@ namespace RVO
                  * Project on left leg, right leg, or cut-off line, whichever is
                  * closest to velocity.
                  */
-                float distSqCutoff = (t < 0.0f || t > 1.0f || obstacle1 == obstacle2) ? float.PositiveInfinity : math.lengthsq(this.velocity_ - (leftCutOff + (t * cutOffVector)));
+                float distSqCutoff = (t < 0.0f || t > 1.0f || obstacle1.id_ == obstacle2.id_) ? float.PositiveInfinity : math.lengthsq(this.velocity_ - (leftCutOff + (t * cutOffVector)));
                 float distSqLeft = tLeft < 0.0f ? float.PositiveInfinity : math.lengthsq(this.velocity_ - (leftCutOff + (tLeft * leftLegDirection)));
                 float distSqRight = tRight < 0.0f ? float.PositiveInfinity : math.lengthsq(this.velocity_ - (rightCutOff + (tRight * rightLegDirection)));
 
@@ -443,10 +444,11 @@ namespace RVO
          * <param name="agent">A pointer to the agent to be inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertAgentNeighbor(Agent agent, ref float rangeSq)
+        internal void insertAgentNeighbor(int agentIndex, ref float rangeSq, IList<Agent> agents)
         {
-            if (this != agent)
+            if (this.id_ != agentIndex)
             {
+                Agent agent = agents[agentIndex];
                 float distSq = math.lengthsq(this.position_ - agent.position_);
 
                 if (distSq < rangeSq)
@@ -482,8 +484,9 @@ namespace RVO
          * inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertObstacleNeighbor(Obstacle obstacle, float rangeSq, IList<Obstacle> obstacles)
+        internal void insertObstacleNeighbor(int obstacleIndex, float rangeSq, IList<Obstacle> obstacles)
         {
+            Obstacle obstacle = obstacles[obstacleIndex];
             int nextObstacleIndex = obstacle.nextIndex_;
             Obstacle nextObstacle = obstacles[nextObstacleIndex];
 
@@ -491,7 +494,7 @@ namespace RVO
 
             if (distSq < rangeSq)
             {
-                this.obstacleNeighbors_.Add(new KeyValuePair<float, Obstacle>(distSq, obstacle));
+                this.obstacleNeighbors_.Add(new KeyValuePair<float, int>(distSq, obstacleIndex));
 
                 int i = this.obstacleNeighbors_.Count - 1;
 
@@ -501,7 +504,7 @@ namespace RVO
                     --i;
                 }
 
-                this.obstacleNeighbors_[i] = new KeyValuePair<float, Obstacle>(distSq, obstacle);
+                this.obstacleNeighbors_[i] = new KeyValuePair<float, int>(distSq, obstacleIndex);
             }
         }
 
