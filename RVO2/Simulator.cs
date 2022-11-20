@@ -40,6 +40,8 @@
  * <http://gamma.cs.unc.edu/RVO2/>
  */
 
+using System;
+
 namespace RVO
 {
     using System.Collections.Generic;
@@ -51,7 +53,7 @@ namespace RVO
     /**
      * <summary>Defines the simulation.</summary>
      */
-    public class Simulator
+    public class Simulator : IDisposable
     {
         private struct buildJob : IJob
         {
@@ -77,9 +79,13 @@ namespace RVO
             }
         }
 
-        internal IList<Agent> agents_;
-        internal IList<Obstacle> obstacles_;
-        internal KdTree kdTree_;
+        public struct SimulationData
+        {
+        }
+
+        internal readonly List<Agent> agents_ = new List<Agent>();
+        internal readonly List<Obstacle> obstacles_ = new List<Obstacle>();
+        internal readonly KdTree kdTree_ = new KdTree();
         internal float timeStep_;
 
         private Agent defaultAgent_;
@@ -254,10 +260,10 @@ namespace RVO
          */
         public void Clear()
         {
-            this.agents_ = new List<Agent>();
+            this.agents_.Clear();
             this.defaultAgent_ = null;
-            this.kdTree_ = new KdTree();
-            this.obstacles_ = new List<Obstacle>();
+            this.kdTree_.Clear();
+            this.obstacles_.Clear();
             this.globalTime_ = 0.0f;
             this.timeStep_ = 0.1f;
 
@@ -269,26 +275,29 @@ namespace RVO
          */
         internal void buildAgentTree()
         {
-            if (this.kdTree_.agents_ == null || this.kdTree_.agents_.Length != this.agents_.Count)
+            if (this.kdTree_.agents_ == null || this.kdTree_.agents_.Count != this.agents_.Count)
             {
-                this.kdTree_.agents_ = new Agent[this.agents_.Count];
+                this.kdTree_.agents_.Clear();
+                this.kdTree_.agents_.Capacity = this.agents_.Count;
 
-                for (int i = 0; i < this.kdTree_.agents_.Length; ++i)
+                for (int i = 0; i < this.agents_.Count; ++i)
                 {
-                    this.kdTree_.agents_[i] = this.agents_[i];
+                    this.kdTree_.agents_.Add(this.agents_[i]);
                 }
 
-                this.kdTree_.agentTree_ = new KdTree.AgentTreeNode[2 * this.kdTree_.agents_.Length];
+                int agentTreeSize = 2 * this.kdTree_.agents_.Count;
+                this.kdTree_.agentTree_.Clear();
+                this.kdTree_.agentTree_.Capacity = agentTreeSize;
 
-                for (int i = 0; i < this.kdTree_.agentTree_.Length; ++i)
+                for (int i = 0; i < agentTreeSize; ++i)
                 {
-                    this.kdTree_.agentTree_[i] = default(KdTree.AgentTreeNode);
+                    this.kdTree_.agentTree_.Add(default(KdTree.AgentTreeNode));
                 }
             }
 
-            if (this.kdTree_.agents_.Length != 0)
+            if (this.kdTree_.agents_.Count != 0)
             {
-                this.buildAgentTreeRecursive(0, this.kdTree_.agents_.Length, 0);
+                this.buildAgentTreeRecursive(0, this.kdTree_.agents_.Count, 0);
             }
         }
 
@@ -319,18 +328,21 @@ namespace RVO
          */
         internal void buildAgentTreeRecursive(int begin, int end, int node)
         {
-            this.kdTree_.agentTree_[node].begin_ = begin;
-            this.kdTree_.agentTree_[node].end_ = end;
-            this.kdTree_.agentTree_[node].minX_ = this.kdTree_.agentTree_[node].maxX_ = this.kdTree_.agents_[begin].position_.x;
-            this.kdTree_.agentTree_[node].minY_ = this.kdTree_.agentTree_[node].maxY_ = this.kdTree_.agents_[begin].position_.y;
+            KdTree.AgentTreeNode agentTreeNode = this.kdTree_.agentTree_[node];
+            agentTreeNode.begin_ = begin;
+            agentTreeNode.end_ = end;
+            agentTreeNode.minX_ = agentTreeNode.maxX_ = this.kdTree_.agents_[begin].position_.x;
+            agentTreeNode.minY_ = agentTreeNode.maxY_ = this.kdTree_.agents_[begin].position_.y;
 
             for (int i = begin + 1; i < end; ++i)
             {
-                this.kdTree_.agentTree_[node].maxX_ = math.max(this.kdTree_.agentTree_[node].maxX_, this.kdTree_.agents_[i].position_.x);
-                this.kdTree_.agentTree_[node].minX_ = math.min(this.kdTree_.agentTree_[node].minX_, this.kdTree_.agents_[i].position_.x);
-                this.kdTree_.agentTree_[node].maxY_ = math.max(this.kdTree_.agentTree_[node].maxY_, this.kdTree_.agents_[i].position_.y);
-                this.kdTree_.agentTree_[node].minY_ = math.min(this.kdTree_.agentTree_[node].minY_, this.kdTree_.agents_[i].position_.y);
+                agentTreeNode.maxX_ = math.max(agentTreeNode.maxX_, this.kdTree_.agents_[i].position_.x);
+                agentTreeNode.minX_ = math.min(agentTreeNode.minX_, this.kdTree_.agents_[i].position_.x);
+                agentTreeNode.maxY_ = math.max(agentTreeNode.maxY_, this.kdTree_.agents_[i].position_.y);
+                agentTreeNode.minY_ = math.min(agentTreeNode.minY_, this.kdTree_.agents_[i].position_.y);
             }
+
+            this.kdTree_.agentTree_[node] = agentTreeNode;
 
             if (end - begin > KdTree.MAX_LEAF_SIZE)
             {
@@ -371,15 +383,15 @@ namespace RVO
                     ++left;
                 }
 
-                this.kdTree_.agentTree_[node].left_ = node + 1;
-                this.kdTree_.agentTree_[node].right_ = node + (2 * leftSize);
+                agentTreeNode.left_ = node + 1;
+                agentTreeNode.right_ = node + (2 * leftSize);
+                this.kdTree_.agentTree_[node] = agentTreeNode;
 
                 this.buildAgentTreeRecursive(begin, left, this.kdTree_.agentTree_[node].left_);
                 this.buildAgentTreeRecursive(left, end, this.kdTree_.agentTree_[node].right_);
             }
         }
 
-        
         /**
          * <summary>Recursive method for building an obstacle k-D tree.
          * </summary>
@@ -1129,6 +1141,11 @@ namespace RVO
         public void setTimeStep(float timeStep)
         {
             this.timeStep_ = timeStep;
+        }
+
+        public void Dispose()
+        {
+            this.Clear();
         }
     }
 }
