@@ -80,8 +80,6 @@ namespace RVO
          */
         internal class ObstacleTreeNode
         {
-            internal Obstacle obstacle_;
-
             internal int obstacleIndex_;
             internal int leftIndex_ = -1;
             internal int rightIndex_ = -1;
@@ -92,7 +90,7 @@ namespace RVO
          */
         internal const int MAX_LEAF_SIZE = 10;
 
-        internal readonly List<Agent> agents_ = new List<Agent>();
+        internal readonly List<int> agents_ = new List<int>();
         internal readonly List<AgentTreeNode> agentTree_ = new List<AgentTreeNode>();
 
         internal readonly List<ObstacleTreeNode> obstacleTreeNodes_ = new List<ObstacleTreeNode>();
@@ -106,9 +104,9 @@ namespace RVO
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
          */
-        internal void computeAgentNeighbors(Agent agent, ref float rangeSq)
+        internal void computeAgentNeighbors(int agentIndex, ref float rangeSq, IList<Agent> agents)
         {
-            this.queryAgentTreeRecursive(agent, ref rangeSq, 0);
+            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, 0, agents);
         }
 
         /**
@@ -152,13 +150,14 @@ namespace RVO
          * <param name="rangeSq">The squared range around the agent.</param>
          * <param name="node">The current agent k-D tree node index.</param>
          */
-        private void queryAgentTreeRecursive(Agent agent, ref float rangeSq, int node)
+        private void queryAgentTreeRecursive(int agentIndex, ref float rangeSq, int node, IList<Agent> agents)
         {
+            Agent agent = agents[agentIndex];
             if (this.agentTree_[node].end_ - this.agentTree_[node].begin_ <= MAX_LEAF_SIZE)
             {
                 for (int i = this.agentTree_[node].begin_; i < this.agentTree_[node].end_; ++i)
                 {
-                    agent.insertAgentNeighbor(this.agents_[i], ref rangeSq);
+                    agent.insertAgentNeighbor(this.agents_[i], ref rangeSq, agents);
                 }
             }
             else
@@ -176,11 +175,11 @@ namespace RVO
                 {
                     if (distSqLeft < rangeSq)
                     {
-                        this.queryAgentTreeRecursive(agent, ref rangeSq, this.agentTree_[node].left_);
+                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, agents);
 
                         if (distSqRight < rangeSq)
                         {
-                            this.queryAgentTreeRecursive(agent, ref rangeSq, this.agentTree_[node].right_);
+                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, agents);
                         }
                     }
                 }
@@ -188,11 +187,11 @@ namespace RVO
                 {
                     if (distSqRight < rangeSq)
                     {
-                        this.queryAgentTreeRecursive(agent, ref rangeSq, this.agentTree_[node].right_);
+                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, agents);
 
                         if (distSqLeft < rangeSq)
                         {
-                            this.queryAgentTreeRecursive(agent, ref rangeSq, this.agentTree_[node].left_);
+                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, agents);
                         }
                     }
                 }
@@ -223,7 +222,8 @@ namespace RVO
         {
             if (node != null)
             {
-                Obstacle obstacle1 = node.obstacle_;
+                int obstacle1Index = node.obstacleIndex_;
+                Obstacle obstacle1 = obstacles[obstacle1Index];
                 int obstacle2Index = obstacle1.nextIndex_;
                 Obstacle obstacle2 = obstacles[obstacle2Index];
 
@@ -241,7 +241,7 @@ namespace RVO
                          * Try obstacle at this node only if agent is on right side of
                          * obstacle (and can see obstacle).
                          */
-                        agent.insertObstacleNeighbor(node.obstacle_, rangeSq, obstacles);
+                        agent.insertObstacleNeighbor(node.obstacleIndex_, rangeSq, obstacles);
                     }
 
                     /* Try other side of line. */
@@ -283,7 +283,8 @@ namespace RVO
                 return true;
             }
 
-            Obstacle obstacle1 = node.obstacle_;
+            int obstacle1Index = node.obstacleIndex_;
+            Obstacle obstacle1 = obstacles[obstacle1Index];
             int obstacle2Index = obstacle1.nextIndex_;
             Obstacle obstacle2 = obstacles[obstacle2Index];
 
