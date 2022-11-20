@@ -51,9 +51,13 @@ namespace RVO
      */
     internal class Agent
     {
-        internal IList<KeyValuePair<float, Agent>> agentNeighbors_ = new List<KeyValuePair<float, Agent>>();
-        internal IList<KeyValuePair<float, Obstacle>> obstacleNeighbors_ = new List<KeyValuePair<float, Obstacle>>();
-        internal IList<Line> orcaLines_ = new List<Line>();
+        public struct AgentData
+        {
+        }
+
+        internal readonly List<KeyValuePair<float, Agent>> agentNeighbors_ = new List<KeyValuePair<float, Agent>>();
+        internal readonly List<KeyValuePair<float, Obstacle>> obstacleNeighbors_ = new List<KeyValuePair<float, Obstacle>>();
+        internal readonly List<Line> orcaLines_ = new List<Line>();
         internal float2 position_;
         internal float2 prefVelocity_;
         internal float2 velocity_;
@@ -65,7 +69,7 @@ namespace RVO
         internal float timeHorizon_ = 0.0f;
         internal float timeHorizonObst_ = 0.0f;
 
-        private float2 newVelocity_;
+        internal float2 newVelocity_;
 
         /**
          * <summary>Computes the neighbors of this agent.</summary>

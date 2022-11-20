@@ -70,9 +70,8 @@ namespace RVO
         internal int NewObstacleTreeNode()
         {
             ObstacleTreeNode node = new ObstacleTreeNode();
-            int oldLen = obstacleTreeNodes_.Length;
-            Array.Resize(ref obstacleTreeNodes_, oldLen + 1);
-            obstacleTreeNodes_[oldLen] = node;
+            int oldLen = obstacleTreeNodes_.Count;
+            obstacleTreeNodes_.Add(node);
             return oldLen;
         }
 
@@ -93,10 +92,10 @@ namespace RVO
          */
         internal const int MAX_LEAF_SIZE = 10;
 
-        internal Agent[] agents_;
-        internal AgentTreeNode[] agentTree_;
+        internal readonly List<Agent> agents_ = new List<Agent>();
+        internal readonly List<AgentTreeNode> agentTree_ = new List<AgentTreeNode>();
 
-        internal ObstacleTreeNode[] obstacleTreeNodes_ = Array.Empty<ObstacleTreeNode>();
+        internal readonly List<ObstacleTreeNode> obstacleTreeNodes_ = new List<ObstacleTreeNode>();
         internal int obstacleTreeIndex_ = -1;
 
         /**
@@ -203,7 +202,7 @@ namespace RVO
         private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, IList<Obstacle> obstacles)
         {
             ObstacleTreeNode node = null;
-            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Length)
+            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Count)
             {
                 node = obstacleTreeNodes_[nodeIndex];
             }
@@ -254,7 +253,7 @@ namespace RVO
         private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex, IList<Obstacle> obstacles)
         {
             ObstacleTreeNode node = null;
-            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Length)
+            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Count)
             {
                 node = obstacleTreeNodes_[nodeIndex];
             }
@@ -315,22 +314,27 @@ namespace RVO
             return point1LeftOfQ * point2LeftOfQ >= 0.0f && RVOMath.sqr(point1LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && RVOMath.sqr(point2LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_, obstacles) && this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_, obstacles);
         }
 
+        public void Clear()
+        {
+            if (this.agents_.Count > 0)
+            {
+                this.agents_.Clear();
+            }
+
+            if (this.agentTree_.Count > 0)
+            {
+                this.agentTree_.Clear();
+            }
+
+            if (obstacleTreeNodes_.Count > 0)
+            {
+                obstacleTreeNodes_.Clear();
+            }
+        }
+
         public void Dispose()
         {
-            if (this.agents_ != null)
-            {
-                this.agents_ = null;
-            }
-
-            if (this.agentTree_ != null)
-            {
-                this.agentTree_ = null;
-            }
-
-            if (obstacleTreeNodes_ != null)
-            {
-                obstacleTreeNodes_ = null;
-            }
+            this.Clear();
         }
     }
 }
