@@ -85,7 +85,13 @@ namespace RVO
 
         internal readonly List<Agent> agents_ = new List<Agent>();
         internal readonly List<Obstacle> obstacles_ = new List<Obstacle>();
-        internal readonly KdTree kdTree_ = new KdTree();
+        internal readonly KdTree kdTree_ = new KdTree
+        {
+            agents_ = new List<int>(),
+            agentTree_ = new List<KdTree.AgentTreeNode>(),
+            obstacleTreeNodes_ = new List<KdTree.ObstacleTreeNode>(),
+        };
+
         internal float timeStep_;
 
         private Agent defaultAgent_;
@@ -306,7 +312,7 @@ namespace RVO
          */
         internal void buildObstacleTree()
         {
-            this.kdTree_.obstacleTreeIndex_ = this.kdTree_.NewObstacleTreeNode();
+            this.kdTree_.obstacleTreeNodes_.Clear();
 
             IList<int> obstacles = new List<int>(this.obstacles_.Count);
 
@@ -315,7 +321,7 @@ namespace RVO
                 obstacles.Add(i);
             }
 
-            this.kdTree_.obstacleTreeIndex_ = this.buildObstacleTreeRecursive(obstacles);
+            this.buildObstacleTreeRecursive(obstacles);
         }
 
         /**
@@ -324,33 +330,33 @@ namespace RVO
          * <param name="begin">The beginning agent k-D tree node node index.
          * </param>
          * <param name="end">The ending agent k-D tree node index.</param>
-         * <param name="node">The current agent k-D tree node index.</param>
+         * <param name="nodeIndex">The current agent k-D tree node index.</param>
          */
-        internal void buildAgentTreeRecursive(int begin, int end, int node, IList<Agent> agents)
+        internal void buildAgentTreeRecursive(int begin, int end, int nodeIndex, IList<Agent> agents)
         {
-            KdTree.AgentTreeNode agentTreeNode = this.kdTree_.agentTree_[node];
-            agentTreeNode.begin_ = begin;
-            agentTreeNode.end_ = end;
+            KdTree.AgentTreeNode node = this.kdTree_.agentTree_[nodeIndex];
+            node.begin_ = begin;
+            node.end_ = end;
             Agent agentBegin = agents[this.kdTree_.agents_[begin]];
-            agentTreeNode.minX_ = agentTreeNode.maxX_ = agentBegin.position_.x;
-            agentTreeNode.minY_ = agentTreeNode.maxY_ = agentBegin.position_.y;
+            node.minX_ = node.maxX_ = agentBegin.position_.x;
+            node.minY_ = node.maxY_ = agentBegin.position_.y;
 
             for (int i = begin + 1; i < end; ++i)
             {
                 Agent agentI = agents[this.kdTree_.agents_[i]];
-                agentTreeNode.maxX_ = math.max(agentTreeNode.maxX_, agentI.position_.x);
-                agentTreeNode.minX_ = math.min(agentTreeNode.minX_, agentI.position_.x);
-                agentTreeNode.maxY_ = math.max(agentTreeNode.maxY_, agentI.position_.y);
-                agentTreeNode.minY_ = math.min(agentTreeNode.minY_, agentI.position_.y);
+                node.maxX_ = math.max(node.maxX_, agentI.position_.x);
+                node.minX_ = math.min(node.minX_, agentI.position_.x);
+                node.maxY_ = math.max(node.maxY_, agentI.position_.y);
+                node.minY_ = math.min(node.minY_, agentI.position_.y);
             }
 
-            this.kdTree_.agentTree_[node] = agentTreeNode;
+            this.kdTree_.agentTree_[nodeIndex] = node;
 
             if (end - begin > KdTree.MAX_LEAF_SIZE)
             {
                 /* No leaf node. */
-                bool isVertical = this.kdTree_.agentTree_[node].maxX_ - this.kdTree_.agentTree_[node].minX_ > this.kdTree_.agentTree_[node].maxY_ - this.kdTree_.agentTree_[node].minY_;
-                float splitValue = 0.5f * (isVertical ? this.kdTree_.agentTree_[node].maxX_ + this.kdTree_.agentTree_[node].minX_ : this.kdTree_.agentTree_[node].maxY_ + this.kdTree_.agentTree_[node].minY_);
+                bool isVertical = this.kdTree_.agentTree_[nodeIndex].maxX_ - this.kdTree_.agentTree_[nodeIndex].minX_ > this.kdTree_.agentTree_[nodeIndex].maxY_ - this.kdTree_.agentTree_[nodeIndex].minY_;
+                float splitValue = 0.5f * (isVertical ? this.kdTree_.agentTree_[nodeIndex].maxX_ + this.kdTree_.agentTree_[nodeIndex].minX_ : this.kdTree_.agentTree_[nodeIndex].maxY_ + this.kdTree_.agentTree_[nodeIndex].minY_);
 
                 int left = begin;
                 int right = end;
@@ -401,12 +407,12 @@ namespace RVO
                     ++left;
                 }
 
-                agentTreeNode.left_ = node + 1;
-                agentTreeNode.right_ = node + (2 * leftSize);
-                this.kdTree_.agentTree_[node] = agentTreeNode;
+                node.left_ = nodeIndex + 1;
+                node.right_ = nodeIndex + (2 * leftSize);
+                this.kdTree_.agentTree_[nodeIndex] = node;
 
-                this.buildAgentTreeRecursive(begin, left, this.kdTree_.agentTree_[node].left_, agents);
-                this.buildAgentTreeRecursive(left, end, this.kdTree_.agentTree_[node].right_, agents);
+                this.buildAgentTreeRecursive(begin, left, this.kdTree_.agentTree_[nodeIndex].left_, agents);
+                this.buildAgentTreeRecursive(left, end, this.kdTree_.agentTree_[nodeIndex].right_, agents);
             }
         }
 
@@ -576,8 +582,17 @@ namespace RVO
                 }
 
                 node.obstacleIndex_ = obstacleI1Index;
-                node.leftIndex_ = this.buildObstacleTreeRecursive(leftObstacles);
-                node.rightIndex_ = this.buildObstacleTreeRecursive(rightObstacles);
+                this.kdTree_.obstacleTreeNodes_[nodeIndex] = node;
+
+                var leftIndex = this.buildObstacleTreeRecursive(leftObstacles);
+                node = this.kdTree_.obstacleTreeNodes_[nodeIndex];
+                node.leftIndex_ = leftIndex;
+                this.kdTree_.obstacleTreeNodes_[nodeIndex] = node;
+
+                var rightIndex = this.buildObstacleTreeRecursive(rightObstacles);
+                node = this.kdTree_.obstacleTreeNodes_[nodeIndex];
+                node.rightIndex_ = rightIndex;
+                this.kdTree_.obstacleTreeNodes_[nodeIndex] = node;
 
                 return nodeIndex;
             }
@@ -629,7 +644,7 @@ namespace RVO
          */
         public int getAgentAgentNeighbor(int agentNo, int neighborNo)
         {
-            return this.agents_[agentNo].agentNeighbors_[neighborNo].Value.id_;
+            return this.agents_[agentNo].agentNeighbors_[neighborNo].Value;
         }
 
         /**

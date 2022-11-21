@@ -40,6 +40,8 @@
  * <http://gamma.cs.unc.edu/RVO2/>
  */
 
+using Unity.Collections;
+
 namespace RVO
 {
     using System;
@@ -50,7 +52,7 @@ namespace RVO
      * <summary>Defines k-D trees for agents and static obstacles in the
      * simulation.</summary>
      */
-    internal class KdTree : IDisposable
+    internal struct KdTree : IDisposable
     {
         /**
          * <summary>Defines a node of an agent k-D tree.</summary>
@@ -69,20 +71,28 @@ namespace RVO
 
         internal int NewObstacleTreeNode()
         {
-            ObstacleTreeNode node = new ObstacleTreeNode();
-            int oldLen = obstacleTreeNodes_.Count;
-            obstacleTreeNodes_.Add(node);
+            ObstacleTreeNode node = new ObstacleTreeNode
+            {
+                valid = true,
+                obstacleIndex_ = 0,
+                leftIndex_ = -1,
+                rightIndex_ = -1,
+            };
+
+            int oldLen = this.obstacleTreeNodes_.Count;
+            this.obstacleTreeNodes_.Add(node);
             return oldLen;
         }
 
         /**
          * <summary>Defines a node of an obstacle k-D tree.</summary>
          */
-        internal class ObstacleTreeNode
+        internal struct ObstacleTreeNode
         {
+            internal bool valid;
             internal int obstacleIndex_;
-            internal int leftIndex_ = -1;
-            internal int rightIndex_ = -1;
+            internal int leftIndex_;
+            internal int rightIndex_;
         }
 
         /**
@@ -90,11 +100,10 @@ namespace RVO
          */
         internal const int MAX_LEAF_SIZE = 10;
 
-        internal readonly List<int> agents_ = new List<int>();
-        internal readonly List<AgentTreeNode> agentTree_ = new List<AgentTreeNode>();
+        internal List<int> agents_;
+        internal List<AgentTreeNode> agentTree_;
 
-        internal readonly List<ObstacleTreeNode> obstacleTreeNodes_ = new List<ObstacleTreeNode>();
-        internal int obstacleTreeIndex_ = -1;
+        internal List<ObstacleTreeNode> obstacleTreeNodes_;
 
         /**
          * <summary>Computes the agent neighbors of the specified agent.
@@ -119,7 +128,7 @@ namespace RVO
          */
         internal void computeObstacleNeighbors(Agent agent, float rangeSq, IList<Obstacle> obstacles)
         {
-            this.queryObstacleTreeRecursive(agent, rangeSq, this.obstacleTreeIndex_, obstacles);
+            this.queryObstacleTreeRecursive(agent, rangeSq, 0, obstacles);
         }
 
         /**
@@ -138,7 +147,7 @@ namespace RVO
          */
         internal bool queryVisibility(float2 q1, float2 q2, float radius, IList<Obstacle> obstacles)
         {
-            return this.queryVisibilityRecursive(q1, q2, radius, this.obstacleTreeIndex_, obstacles);
+            return this.queryVisibilityRecursive(q1, q2, radius, 0, obstacles);
         }
 
         /**
@@ -198,17 +207,6 @@ namespace RVO
             }
         }
 
-        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, IList<Obstacle> obstacles)
-        {
-            ObstacleTreeNode node = null;
-            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Count)
-            {
-                node = obstacleTreeNodes_[nodeIndex];
-            }
-
-            queryObstacleTreeRecursive(agent, rangeSq, node, obstacles);
-        }
-
         /**
          * <summary>Recursive method for computing the obstacle neighbors of the
          * specified agent.</summary>
@@ -216,49 +214,46 @@ namespace RVO
          * <param name="agent">The agent for which obstacle neighbors are to be
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
-         * <param name="node">The current obstacle k-D node.</param>
+         * <param name="nodeIndex">The current obstacle k-D node.</param>
          */
-        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, ObstacleTreeNode node, IList<Obstacle> obstacles)
+        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, IList<Obstacle> obstacles)
         {
-            if (node != null)
+            ObstacleTreeNode node = default;
+            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Count)
             {
-                int obstacle1Index = node.obstacleIndex_;
-                Obstacle obstacle1 = obstacles[obstacle1Index];
-                int obstacle2Index = obstacle1.nextIndex_;
-                Obstacle obstacle2 = obstacles[obstacle2Index];
+                node = this.obstacleTreeNodes_[nodeIndex];
+            }
 
-                float agentLeftOfLine = RVOMath.leftOf(obstacle1.point_, obstacle2.point_, agent.position_);
+            if (!node.valid)
+            {
+                return;
+            }
 
-                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.leftIndex_ : node.rightIndex_, obstacles);
+            int obstacle1Index = node.obstacleIndex_;
+            Obstacle obstacle1 = obstacles[obstacle1Index];
+            int obstacle2Index = obstacle1.nextIndex_;
+            Obstacle obstacle2 = obstacles[obstacle2Index];
 
-                float distSqLine = RVOMath.sqr(agentLeftOfLine) / math.lengthsq(obstacle2.point_ - obstacle1.point_);
+            float agentLeftOfLine = RVOMath.leftOf(obstacle1.point_, obstacle2.point_, agent.position_);
 
-                if (distSqLine < rangeSq)
+            this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.leftIndex_ : node.rightIndex_, obstacles);
+
+            float distSqLine = RVOMath.sqr(agentLeftOfLine) / math.lengthsq(obstacle2.point_ - obstacle1.point_);
+
+            if (distSqLine < rangeSq)
+            {
+                if (agentLeftOfLine < 0.0f)
                 {
-                    if (agentLeftOfLine < 0.0f)
-                    {
-                        /*
-                         * Try obstacle at this node only if agent is on right side of
-                         * obstacle (and can see obstacle).
-                         */
-                        agent.insertObstacleNeighbor(node.obstacleIndex_, rangeSq, obstacles);
-                    }
-
-                    /* Try other side of line. */
-                    this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.rightIndex_ : node.leftIndex_, obstacles);
+                    /*
+                     * Try obstacle at this node only if agent is on right side of
+                     * obstacle (and can see obstacle).
+                     */
+                    agent.insertObstacleNeighbor(node.obstacleIndex_, rangeSq, obstacles);
                 }
-            }
-        }
 
-        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex, IList<Obstacle> obstacles)
-        {
-            ObstacleTreeNode node = null;
-            if (nodeIndex >= 0 && nodeIndex < obstacleTreeNodes_.Count)
-            {
-                node = obstacleTreeNodes_[nodeIndex];
+                /* Try other side of line. */
+                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.rightIndex_ : node.leftIndex_, obstacles);
             }
-
-            return queryVisibilityRecursive(q1, q2, radius, node, obstacles);
         }
 
         /**
@@ -276,9 +271,15 @@ namespace RVO
          * tested.</param>
          * <param name="node">The current obstacle k-D node.</param>
          */
-        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, ObstacleTreeNode node, IList<Obstacle> obstacles)
+        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex, IList<Obstacle> obstacles)
         {
-            if (node == null)
+            ObstacleTreeNode node = default;
+            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Count)
+            {
+                node = this.obstacleTreeNodes_[nodeIndex];
+            }
+
+            if (!node.valid)
             {
                 return true;
             }
@@ -327,9 +328,9 @@ namespace RVO
                 this.agentTree_.Clear();
             }
 
-            if (obstacleTreeNodes_.Count > 0)
+            if (this.obstacleTreeNodes_.Count > 0)
             {
-                obstacleTreeNodes_.Clear();
+                this.obstacleTreeNodes_.Clear();
             }
         }
 
