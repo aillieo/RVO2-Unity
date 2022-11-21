@@ -55,7 +55,7 @@ namespace RVO
         {
         }
 
-        internal readonly List<KeyValuePair<float, Agent>> agentNeighbors_ = new List<KeyValuePair<float, Agent>>();
+        internal readonly List<KeyValuePair<float, int>> agentNeighbors_ = new List<KeyValuePair<float, int>>();
         internal readonly List<KeyValuePair<float, int>> obstacleNeighbors_ = new List<KeyValuePair<float, int>>();
         internal readonly List<Line> orcaLines_ = new List<Line>();
         internal float2 position_;
@@ -361,7 +361,8 @@ namespace RVO
             /* Create agent ORCA lines. */
             for (int i = 0; i < this.agentNeighbors_.Count; ++i)
             {
-                Agent other = this.agentNeighbors_[i].Value;
+                int otherIndex = this.agentNeighbors_[i].Value;
+                Agent other = agents[otherIndex];
 
                 float2 relativePosition = other.position_ - this.position_;
                 float2 relativeVelocity = this.velocity_ - other.velocity_;
@@ -455,7 +456,7 @@ namespace RVO
                 {
                     if (this.agentNeighbors_.Count < this.maxNeighbors_)
                     {
-                        this.agentNeighbors_.Add(new KeyValuePair<float, Agent>(distSq, agent));
+                        this.agentNeighbors_.Add(new KeyValuePair<float, int>(distSq, agentIndex));
                     }
 
                     int i = this.agentNeighbors_.Count - 1;
@@ -466,7 +467,7 @@ namespace RVO
                         --i;
                     }
 
-                    this.agentNeighbors_[i] = new KeyValuePair<float, Agent>(distSq, agent);
+                    this.agentNeighbors_[i] = new KeyValuePair<float, int>(distSq, agentIndex);
 
                     if (this.agentNeighbors_.Count == this.maxNeighbors_)
                     {
