@@ -12,6 +12,7 @@ namespace RVO
     using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
+    using UnityEngine.Profiling;
     using Random = System.Random;
 
     public class Interactive : MonoBehaviour
@@ -19,7 +20,9 @@ namespace RVO
         /** Random number generator. */
         private Random random = new Random(0);
 
-        private Simulator simulator = new Simulator();
+        private Simulator simulator;
+
+        private CustomSampler sampler;
 
         private void setupScenario()
         {
@@ -166,8 +169,12 @@ namespace RVO
 
         private void Start()
         {
+            this.simulator = new Simulator();
+
             /* Set up the scenario. */
             this.setupScenario();
+
+            this.sampler = CustomSampler.Create("RVO update", false);
         }
 
         private void Update()
@@ -196,9 +203,11 @@ namespace RVO
 
                     break;
                 case TouchMode.Move:
+                    this.sampler.Begin();
                     this.setPreferredVelocities(worldPos2d);
                     JobHandle jobHandle = this.simulator.doStep();
                     jobHandle.Complete();
+                    this.sampler.End();
                     break;
                 case TouchMode.Remove:
                     if (isTouchBegan)
@@ -212,6 +221,8 @@ namespace RVO
         private void OnDestroy()
         {
             this.simulator.Clear();
+
+            this.simulator.Dispose();
         }
 
         private enum TouchMode

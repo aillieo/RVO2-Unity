@@ -48,7 +48,7 @@ namespace RVO
      * <summary>Contains functions and constants used in multiple classes.
      * </summary>
      */
-    public struct RVOMath
+    internal static class RVOMath
     {
         /**
          * <summary>A sufficiently small positive number.</summary>
