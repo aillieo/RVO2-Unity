@@ -60,10 +60,12 @@ namespace RVO
         /* Store the goals of the agents. */
         private IList<float2> goals;
 
-        private Simulator simulator = new Simulator();
+        private Simulator simulator;
 
         private void Start()
         {
+            this.simulator = new Simulator();
+
             this.StartCoroutine(this.Main());
         }
 

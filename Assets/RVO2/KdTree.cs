@@ -54,6 +54,14 @@ namespace RVO
      */
     internal struct KdTree : IDisposable
     {
+        internal KdTree(int agentCount, int obstacleCount)
+            : this()
+        {
+            this.agents_ = new NativeList<int>(agentCount, Allocator.Persistent);
+            this.agentTree_ = new NativeList<AgentTreeNode>(agentCount * 2, Allocator.Persistent);
+            this.obstacleTreeNodes_ = new NativeList<ObstacleTreeNode>(obstacleCount, Allocator.Persistent);
+        }
+
         /**
          * <summary>Defines a node of an agent k-D tree.</summary>
          */
@@ -79,7 +87,7 @@ namespace RVO
                 rightIndex_ = -1,
             };
 
-            int oldLen = this.obstacleTreeNodes_.Count;
+            int oldLen = this.obstacleTreeNodes_.Length;
             this.obstacleTreeNodes_.Add(node);
             return oldLen;
         }
@@ -100,10 +108,10 @@ namespace RVO
          */
         internal const int MAX_LEAF_SIZE = 10;
 
-        internal List<int> agents_;
-        internal List<AgentTreeNode> agentTree_;
+        internal NativeList<int> agents_;
+        internal NativeList<AgentTreeNode> agentTree_;
 
-        internal List<ObstacleTreeNode> obstacleTreeNodes_;
+        internal NativeList<ObstacleTreeNode> obstacleTreeNodes_;
 
         /**
          * <summary>Computes the agent neighbors of the specified agent.
@@ -113,7 +121,7 @@ namespace RVO
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
          */
-        internal void computeAgentNeighbors(int agentIndex, ref float rangeSq, IList<Agent> agents)
+        internal void computeAgentNeighbors(int agentIndex, ref float rangeSq, List<Agent> agents)
         {
             this.queryAgentTreeRecursive(agentIndex, ref rangeSq, 0, agents);
         }
@@ -126,7 +134,7 @@ namespace RVO
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
          */
-        internal void computeObstacleNeighbors(Agent agent, float rangeSq, IList<Obstacle> obstacles)
+        internal void computeObstacleNeighbors(Agent agent, float rangeSq, List<Obstacle> obstacles)
         {
             this.queryObstacleTreeRecursive(agent, rangeSq, 0, obstacles);
         }
@@ -145,7 +153,7 @@ namespace RVO
          * <param name="radius">The radius within which visibility is to be
          * tested.</param>
          */
-        internal bool queryVisibility(float2 q1, float2 q2, float radius, IList<Obstacle> obstacles)
+        internal bool queryVisibility(float2 q1, float2 q2, float radius, List<Obstacle> obstacles)
         {
             return this.queryVisibilityRecursive(q1, q2, radius, 0, obstacles);
         }
@@ -159,7 +167,7 @@ namespace RVO
          * <param name="rangeSq">The squared range around the agent.</param>
          * <param name="node">The current agent k-D tree node index.</param>
          */
-        private void queryAgentTreeRecursive(int agentIndex, ref float rangeSq, int node, IList<Agent> agents)
+        private void queryAgentTreeRecursive(int agentIndex, ref float rangeSq, int node, List<Agent> agents)
         {
             Agent agent = agents[agentIndex];
             if (this.agentTree_[node].end_ - this.agentTree_[node].begin_ <= MAX_LEAF_SIZE)
@@ -216,10 +224,10 @@ namespace RVO
          * <param name="rangeSq">The squared range around the agent.</param>
          * <param name="nodeIndex">The current obstacle k-D node.</param>
          */
-        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, IList<Obstacle> obstacles)
+        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, List<Obstacle> obstacles)
         {
             ObstacleTreeNode node = default;
-            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Count)
+            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Length)
             {
                 node = this.obstacleTreeNodes_[nodeIndex];
             }
@@ -271,10 +279,10 @@ namespace RVO
          * tested.</param>
          * <param name="node">The current obstacle k-D node.</param>
          */
-        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex, IList<Obstacle> obstacles)
+        private bool queryVisibilityRecursive(float2 q1, float2 q2, float radius, int nodeIndex, List<Obstacle> obstacles)
         {
             ObstacleTreeNode node = default;
-            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Count)
+            if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Length)
             {
                 node = this.obstacleTreeNodes_[nodeIndex];
             }
@@ -316,19 +324,19 @@ namespace RVO
             return point1LeftOfQ * point2LeftOfQ >= 0.0f && RVOMath.sqr(point1LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && RVOMath.sqr(point2LeftOfQ) * invLengthQ > RVOMath.sqr(radius) && this.queryVisibilityRecursive(q1, q2, radius, node.leftIndex_, obstacles) && this.queryVisibilityRecursive(q1, q2, radius, node.rightIndex_, obstacles);
         }
 
-        public void Clear()
+        internal readonly void Clear()
         {
-            if (this.agents_.Count > 0)
+            if (this.agents_.IsCreated && !this.agents_.IsEmpty)
             {
                 this.agents_.Clear();
             }
 
-            if (this.agentTree_.Count > 0)
+            if (this.agentTree_.IsCreated && !this.agentTree_.IsEmpty)
             {
                 this.agentTree_.Clear();
             }
 
-            if (this.obstacleTreeNodes_.Count > 0)
+            if (this.obstacleTreeNodes_.IsCreated && !this.obstacleTreeNodes_.IsEmpty)
             {
                 this.obstacleTreeNodes_.Clear();
             }
@@ -337,6 +345,23 @@ namespace RVO
         public void Dispose()
         {
             this.Clear();
+            if (this.agents_.IsCreated)
+            {
+                this.agents_.Dispose();
+                this.agents_ = default;
+            }
+
+            if (this.agentTree_.IsCreated)
+            {
+                this.agentTree_.Dispose();
+                this.agentTree_ = default;
+            }
+
+            if (this.obstacleTreeNodes_.IsCreated)
+            {
+                this.obstacleTreeNodes_.Dispose();
+                this.obstacleTreeNodes_ = default;
+            }
         }
     }
 }

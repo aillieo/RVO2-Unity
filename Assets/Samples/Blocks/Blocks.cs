@@ -65,11 +65,12 @@ namespace RVO
         /** Random number generator. */
         private Random random;
 
-        private Simulator simulator = new Simulator();
+        private Simulator simulator;
 
         private void Start()
         {
             this.random = new Random(0);
+            this.simulator = new Simulator();
 
             this.StartCoroutine(this.Main());
         }

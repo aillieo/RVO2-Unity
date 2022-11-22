@@ -47,13 +47,21 @@ namespace RVO
     /**
      * <summary>Defines static obstacles in the simulation.</summary>
      */
-    internal class Obstacle
+    internal struct Obstacle
     {
+        internal readonly int id_;
+        internal readonly float2 point_;
+
         internal int nextIndex_;
         internal int previousIndex_;
-        internal float2 point_;
-        internal int id_;
         internal bool convex_;
         internal float2 direction_;
+
+        internal Obstacle(int id, float2 point)
+            : this()
+        {
+            this.id_ = id;
+            this.point_ = point;
+        }
     }
 }

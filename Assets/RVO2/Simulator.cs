@@ -79,18 +79,9 @@ namespace RVO
             }
         }
 
-        public struct SimulationData
-        {
-        }
-
         internal readonly List<Agent> agents_ = new List<Agent>();
         internal readonly List<Obstacle> obstacles_ = new List<Obstacle>();
-        internal readonly KdTree kdTree_ = new KdTree
-        {
-            agents_ = new List<int>(),
-            agentTree_ = new List<KdTree.AgentTreeNode>(),
-            obstacleTreeNodes_ = new List<KdTree.ObstacleTreeNode>(),
-        };
+        internal KdTree kdTree_ = new KdTree(0, 0);
 
         internal float timeStep_;
 
@@ -110,6 +101,14 @@ namespace RVO
             this.Clear();
         }
 
+        private int NewAgent()
+        {
+            int newIndex = this.agents_.Count;
+            Agent agent = new Agent(newIndex);
+            this.agents_.Add(agent);
+            return newIndex;
+        }
+
         /**
          * <summary>Adds a new agent with default properties to the simulation.
          * </summary>
@@ -122,24 +121,15 @@ namespace RVO
          */
         public int addAgent(float2 position)
         {
-            if (this.defaultAgent_ == null)
-            {
-                return -1;
-            }
-
-            Agent agent = new Agent();
-            agent.id_ = this.agents_.Count;
-            agent.maxNeighbors_ = this.defaultAgent_.maxNeighbors_;
-            agent.maxSpeed_ = this.defaultAgent_.maxSpeed_;
-            agent.neighborDist_ = this.defaultAgent_.neighborDist_;
-            agent.position_ = position;
-            agent.radius_ = this.defaultAgent_.radius_;
-            agent.timeHorizon_ = this.defaultAgent_.timeHorizon_;
-            agent.timeHorizonObst_ = this.defaultAgent_.timeHorizonObst_;
-            agent.velocity_ = this.defaultAgent_.velocity_;
-            this.agents_.Add(agent);
-
-            return agent.id_;
+            return this.addAgent(
+                position,
+                this.defaultAgent_.neighborDist_,
+                this.defaultAgent_.maxNeighbors_,
+                this.defaultAgent_.timeHorizon_,
+                this.defaultAgent_.timeHorizonObst_,
+                this.defaultAgent_.radius_,
+                this.defaultAgent_.maxSpeed_,
+                this.defaultAgent_.velocity_);
         }
 
         /**
@@ -178,8 +168,8 @@ namespace RVO
          */
         public int addAgent(float2 position, float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
         {
-            Agent agent = new Agent();
-            agent.id_ = this.agents_.Count;
+            int agentIndex = this.NewAgent();
+            Agent agent = this.agents_[agentIndex];
             agent.maxNeighbors_ = maxNeighbors;
             agent.maxSpeed_ = maxSpeed;
             agent.neighborDist_ = neighborDist;
@@ -188,17 +178,17 @@ namespace RVO
             agent.timeHorizon_ = timeHorizon;
             agent.timeHorizonObst_ = timeHorizonObst;
             agent.velocity_ = velocity;
-            this.agents_.Add(agent);
+            this.agents_[agentIndex] = agent;
 
-            return agent.id_;
+            return agentIndex;
         }
 
-        internal int NewObstacle()
+        internal int NewObstacle(float2 point)
         {
-            Obstacle obstacle = new Obstacle();
-            obstacle.id_ = this.obstacles_.Count;
+            int newIndex = this.obstacles_.Count;
+            Obstacle obstacle = new Obstacle(newIndex, point);
             this.obstacles_.Add(obstacle);
-            return obstacle.id_;
+            return newIndex;
         }
 
         /**
@@ -225,15 +215,17 @@ namespace RVO
 
             for (int i = 0; i < vertices.Count; ++i)
             {
-                int obstacleIndex = this.NewObstacle();
+                int obstacleIndex = this.NewObstacle(vertices[i]);
                 Obstacle obstacle = this.obstacles_[obstacleIndex];
-                obstacle.point_ = vertices[i];
 
                 if (i != 0)
                 {
                     obstacle.previousIndex_ = obstacleIndex - 1;
                     Obstacle previous_ = this.obstacles_[obstacle.previousIndex_];
                     previous_.nextIndex_ = obstacleIndex;
+
+                    this.obstacles_[obstacleIndex] = obstacle;
+                    this.obstacles_[obstacle.previousIndex_] = previous_;
                 }
 
                 if (i == vertices.Count - 1)
@@ -241,6 +233,9 @@ namespace RVO
                     obstacle.nextIndex_ = obstacleNo;
                     Obstacle next_ = this.obstacles_[obstacleNo];
                     next_.previousIndex_ = obstacleNo;
+
+                    this.obstacles_[obstacleIndex] = obstacle;
+                    this.obstacles_[obstacleNo] = next_;
                 }
 
                 obstacle.direction_ = math.normalize(vertices[i == vertices.Count - 1 ? 0 : i + 1] - vertices[i]);
@@ -254,8 +249,7 @@ namespace RVO
                     obstacle.convex_ = RVOMath.leftOf(vertices[i == 0 ? vertices.Count - 1 : i - 1], vertices[i], vertices[i == vertices.Count - 1 ? 0 : i + 1]) >= 0.0f;
                 }
 
-                // obstacle.id_ = this.obstacles_.Count;
-                // this.obstacles_.Add(obstacle);
+                this.obstacles_[obstacleIndex] = obstacle;
             }
 
             return obstacleNo;
@@ -266,8 +260,18 @@ namespace RVO
          */
         public void Clear()
         {
+            if (this.agents_ != null && this.agents_.Count > 0)
+            {
+                for (int i = 0; i < this.agents_.Count; ++ i)
+                {
+                    this.agents_[i].Dispose();
+                    this.agents_[i] = default;
+                }
+            }
+
             this.agents_.Clear();
-            this.defaultAgent_ = null;
+
+            this.defaultAgent_ = default;
             this.kdTree_.Clear();
             this.obstacles_.Clear();
             this.globalTime_ = 0.0f;
@@ -281,7 +285,7 @@ namespace RVO
          */
         internal void buildAgentTree()
         {
-            if (this.kdTree_.agents_ == null || this.kdTree_.agents_.Count != this.agents_.Count)
+            if (!this.kdTree_.agents_.IsCreated || this.kdTree_.agents_.Length != this.agents_.Count)
             {
                 this.kdTree_.agents_.Clear();
                 this.kdTree_.agents_.Capacity = this.agents_.Count;
@@ -291,7 +295,7 @@ namespace RVO
                     this.kdTree_.agents_.Add(i);
                 }
 
-                int agentTreeSize = 2 * this.kdTree_.agents_.Count;
+                int agentTreeSize = 2 * this.kdTree_.agents_.Length;
                 this.kdTree_.agentTree_.Clear();
                 this.kdTree_.agentTree_.Capacity = agentTreeSize;
 
@@ -301,9 +305,9 @@ namespace RVO
                 }
             }
 
-            if (this.kdTree_.agents_.Count != 0)
+            if (this.kdTree_.agents_.Length != 0)
             {
-                this.buildAgentTreeRecursive(0, this.kdTree_.agents_.Count, 0, this.agents_);
+                this.buildAgentTreeRecursive(0, this.kdTree_.agents_.Length, 0, this.agents_);
             }
         }
 
@@ -314,7 +318,7 @@ namespace RVO
         {
             this.kdTree_.obstacleTreeNodes_.Clear();
 
-            IList<int> obstacles = new List<int>(this.obstacles_.Count);
+            List<int> obstacles = new List<int>(this.obstacles_.Count);
 
             for (int i = 0; i < this.obstacles_.Count; ++i)
             {
@@ -332,7 +336,7 @@ namespace RVO
          * <param name="end">The ending agent k-D tree node index.</param>
          * <param name="nodeIndex">The current agent k-D tree node index.</param>
          */
-        internal void buildAgentTreeRecursive(int begin, int end, int nodeIndex, IList<Agent> agents)
+        internal void buildAgentTreeRecursive(int begin, int end, int nodeIndex, List<Agent> agents)
         {
             KdTree.AgentTreeNode node = this.kdTree_.agentTree_[nodeIndex];
             node.begin_ = begin;
@@ -424,7 +428,7 @@ namespace RVO
          *
          * <param name="obstacles">A list of obstacles.</param>
          */
-        internal int buildObstacleTreeRecursive(IList<int> obstacles)
+        internal int buildObstacleTreeRecursive(List<int> obstacles)
         {
             if (obstacles.Count == 0)
             {
@@ -500,14 +504,14 @@ namespace RVO
 
             {
                 /* Build split node. */
-                IList<int> leftObstacles = new List<int>(minLeft);
+                List<int> leftObstacles = new List<int>(minLeft);
 
                 for (int n = 0; n < minLeft; ++n)
                 {
                     leftObstacles.Add(-1);
                 }
 
-                IList<int> rightObstacles = new List<int>(minRight);
+                List<int> rightObstacles = new List<int>(minRight);
 
                 for (int n = 0; n < minRight; ++n)
                 {
@@ -553,13 +557,13 @@ namespace RVO
 
                         float2 splitPoint = obstacleJ1.point_ + (t * (obstacleJ2.point_ - obstacleJ1.point_));
 
-                        int newObstacleIndex = this.NewObstacle();
+                        int newObstacleIndex = this.NewObstacle(splitPoint);
                         Obstacle newObstacle = this.obstacles_[newObstacleIndex];
-                        newObstacle.point_ = splitPoint;
                         newObstacle.previousIndex_ = obstacleJ1Index;
                         newObstacle.nextIndex_ = obstacleJ2Index;
                         newObstacle.convex_ = true;
                         newObstacle.direction_ = obstacleJ1.direction_;
+                        this.obstacles_[newObstacleIndex] = newObstacle;
 
                         // newObstacle.id_ = this.obstacles_.Count;
 
@@ -567,6 +571,8 @@ namespace RVO
 
                         obstacleJ1.nextIndex_ = newObstacleIndex;
                         obstacleJ2.previousIndex_ = newObstacleIndex;
+                        this.obstacles_[obstacleJ1Index] = obstacleJ1;
+                        this.obstacles_[obstacleJ2Index] = obstacleJ2;
 
                         if (j1LeftOfI > 0.0f)
                         {
@@ -614,15 +620,19 @@ namespace RVO
             JobHandle jobHandle1 = new computeJob().Schedule(1, 1, jobHandle0);
             for (int agentNo = 0; agentNo < this.agents_.Count; ++agentNo)
             {
-                this.agents_[agentNo].computeNeighbors(this.kdTree_, this.agents_, this.obstacles_);
-                this.agents_[agentNo].computeNewVelocity(this.timeStep_, this.agents_, this.obstacles_);
+                Agent agent = this.agents_[agentNo];
+                agent.computeNeighbors(this.kdTree_, this.agents_, this.obstacles_);
+                agent.computeNewVelocity(this.timeStep_, this.agents_, this.obstacles_);
+                this.agents_[agentNo] = agent;
             }
 
             // job2
             JobHandle jobHandle2 = new updateJob().Schedule(1, 1, jobHandle1);
             for (int agentNo = 0; agentNo < this.agents_.Count; ++agentNo)
             {
-                this.agents_[agentNo].update(this.timeStep_);
+                Agent agent = this.agents_[agentNo];
+                agent.update(this.timeStep_);
+                this.agents_[agentNo] = agent;
             }
 
             this.globalTime_ += this.timeStep_;
@@ -701,7 +711,7 @@ namespace RVO
          */
         public int getAgentNumAgentNeighbors(int agentNo)
         {
-            return this.agents_[agentNo].agentNeighbors_.Count;
+            return this.agents_[agentNo].agentNeighbors_.Length;
         }
 
         /**
@@ -716,7 +726,7 @@ namespace RVO
          */
         public int getAgentNumObstacleNeighbors(int agentNo)
         {
-            return this.agents_[agentNo].obstacleNeighbors_.Count;
+            return this.agents_[agentNo].obstacleNeighbors_.Length;
         }
 
         /**
@@ -749,7 +759,7 @@ namespace RVO
          * permissible velocities with respect to that ORCA constraint.
          * </remarks>
          */
-        public IList<Line> getAgentOrcaLines(int agentNo)
+        public IEnumerable<Line> getAgentOrcaLines(int agentNo)
         {
             return this.agents_[agentNo].orcaLines_;
         }
@@ -1002,18 +1012,16 @@ namespace RVO
          */
         public void setAgentDefaults(float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
         {
-            if (this.defaultAgent_ == null)
+            this.defaultAgent_ = new Agent
             {
-                this.defaultAgent_ = new Agent();
-            }
-
-            this.defaultAgent_.maxNeighbors_ = maxNeighbors;
-            this.defaultAgent_.maxSpeed_ = maxSpeed;
-            this.defaultAgent_.neighborDist_ = neighborDist;
-            this.defaultAgent_.radius_ = radius;
-            this.defaultAgent_.timeHorizon_ = timeHorizon;
-            this.defaultAgent_.timeHorizonObst_ = timeHorizonObst;
-            this.defaultAgent_.velocity_ = velocity;
+                maxNeighbors_ = maxNeighbors,
+                maxSpeed_ = maxSpeed,
+                neighborDist_ = neighborDist,
+                radius_ = radius,
+                timeHorizon_ = timeHorizon,
+                timeHorizonObst_ = timeHorizonObst,
+                velocity_ = velocity,
+            };
         }
 
         /**
@@ -1027,7 +1035,9 @@ namespace RVO
          */
         public void setAgentMaxNeighbors(int agentNo, int maxNeighbors)
         {
-            this.agents_[agentNo].maxNeighbors_ = maxNeighbors;
+            Agent agent = this.agents_[agentNo];
+            agent.maxNeighbors_ = maxNeighbors;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1040,7 +1050,9 @@ namespace RVO
          */
         public void setAgentMaxSpeed(int agentNo, float maxSpeed)
         {
-            this.agents_[agentNo].maxSpeed_ = maxSpeed;
+            Agent agent = this.agents_[agentNo];
+            agent.maxSpeed_ = maxSpeed;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1054,7 +1066,9 @@ namespace RVO
          */
         public void setAgentNeighborDist(int agentNo, float neighborDist)
         {
-            this.agents_[agentNo].neighborDist_ = neighborDist;
+            Agent agent = this.agents_[agentNo];
+            agent.neighborDist_ = neighborDist;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1068,7 +1082,9 @@ namespace RVO
          */
         public void setAgentPosition(int agentNo, float2 position)
         {
-            this.agents_[agentNo].position_ = position;
+            Agent agent = this.agents_[agentNo];
+            agent.position_ = position;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1082,7 +1098,9 @@ namespace RVO
          */
         public void setAgentPrefVelocity(int agentNo, float2 prefVelocity)
         {
-            this.agents_[agentNo].prefVelocity_ = prefVelocity;
+            Agent agent = this.agents_[agentNo];
+            agent.prefVelocity_ = prefVelocity;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1095,7 +1113,9 @@ namespace RVO
          */
         public void setAgentRadius(int agentNo, float radius)
         {
-            this.agents_[agentNo].radius_ = radius;
+            Agent agent = this.agents_[agentNo];
+            agent.radius_ = radius;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1109,7 +1129,9 @@ namespace RVO
          */
         public void setAgentTimeHorizon(int agentNo, float timeHorizon)
         {
-            this.agents_[agentNo].timeHorizon_ = timeHorizon;
+            Agent agent = this.agents_[agentNo];
+            agent.timeHorizon_ = timeHorizon;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1123,7 +1145,9 @@ namespace RVO
          */
         public void setAgentTimeHorizonObst(int agentNo, float timeHorizonObst)
         {
-            this.agents_[agentNo].timeHorizonObst_ = timeHorizonObst;
+            Agent agent = this.agents_[agentNo];
+            agent.timeHorizonObst_ = timeHorizonObst;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1137,7 +1161,9 @@ namespace RVO
          */
         public void setAgentVelocity(int agentNo, float2 velocity)
         {
-            this.agents_[agentNo].velocity_ = velocity;
+            Agent agent = this.agents_[agentNo];
+            agent.velocity_ = velocity;
+            this.agents_[agentNo] = agent;
         }
 
         /**
@@ -1179,6 +1205,8 @@ namespace RVO
         public void Dispose()
         {
             this.Clear();
+
+            this.kdTree_.Dispose();
         }
     }
 }
