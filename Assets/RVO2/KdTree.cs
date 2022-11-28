@@ -121,9 +121,9 @@ namespace RVO
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
          */
-        internal void computeAgentNeighbors(int agentIndex, ref float rangeSq, List<Agent> agents)
+        internal void computeAgentNeighbors(int agentIndex, ref float rangeSq, Simulator.SimulationData data)
         {
-            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, 0, agents);
+            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, 0, data);
         }
 
         /**
@@ -134,9 +134,9 @@ namespace RVO
          * computed.</param>
          * <param name="rangeSq">The squared range around the agent.</param>
          */
-        internal void computeObstacleNeighbors(Agent agent, float rangeSq, List<Obstacle> obstacles)
+        internal void computeObstacleNeighbors(Agent agent, float rangeSq, Simulator.SimulationData data)
         {
-            this.queryObstacleTreeRecursive(agent, rangeSq, 0, obstacles);
+            this.queryObstacleTreeRecursive(agent, rangeSq, 0, data);
         }
 
         /**
@@ -167,14 +167,15 @@ namespace RVO
          * <param name="rangeSq">The squared range around the agent.</param>
          * <param name="node">The current agent k-D tree node index.</param>
          */
-        private void queryAgentTreeRecursive(int agentIndex, ref float rangeSq, int node, List<Agent> agents)
+        private void queryAgentTreeRecursive(int agentIndex, ref float rangeSq, int node, Simulator.SimulationData data)
         {
+            var agents = data.agents_;
             Agent agent = agents[agentIndex];
             if (this.agentTree_[node].end_ - this.agentTree_[node].begin_ <= MAX_LEAF_SIZE)
             {
                 for (int i = this.agentTree_[node].begin_; i < this.agentTree_[node].end_; ++i)
                 {
-                    agent.insertAgentNeighbor(this.agents_[i], ref rangeSq, agents);
+                    agent.insertAgentNeighbor(this.agents_[i], ref rangeSq, data);
                 }
             }
             else
@@ -192,11 +193,11 @@ namespace RVO
                 {
                     if (distSqLeft < rangeSq)
                     {
-                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, agents);
+                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, data);
 
                         if (distSqRight < rangeSq)
                         {
-                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, agents);
+                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, data);
                         }
                     }
                 }
@@ -204,11 +205,11 @@ namespace RVO
                 {
                     if (distSqRight < rangeSq)
                     {
-                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, agents);
+                        this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].right_, data);
 
                         if (distSqLeft < rangeSq)
                         {
-                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, agents);
+                            this.queryAgentTreeRecursive(agentIndex, ref rangeSq, this.agentTree_[node].left_, data);
                         }
                     }
                 }
@@ -224,7 +225,7 @@ namespace RVO
          * <param name="rangeSq">The squared range around the agent.</param>
          * <param name="nodeIndex">The current obstacle k-D node.</param>
          */
-        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, List<Obstacle> obstacles)
+        private void queryObstacleTreeRecursive(Agent agent, float rangeSq, int nodeIndex, Simulator.SimulationData data)
         {
             ObstacleTreeNode node = default;
             if (nodeIndex >= 0 && nodeIndex < this.obstacleTreeNodes_.Length)
@@ -237,6 +238,7 @@ namespace RVO
                 return;
             }
 
+            var obstacles = data.obstacles_;
             int obstacle1Index = node.obstacleIndex_;
             Obstacle obstacle1 = obstacles[obstacle1Index];
             int obstacle2Index = obstacle1.nextIndex_;
@@ -244,7 +246,7 @@ namespace RVO
 
             float agentLeftOfLine = RVOMath.leftOf(obstacle1.point_, obstacle2.point_, agent.position_);
 
-            this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.leftIndex_ : node.rightIndex_, obstacles);
+            this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.leftIndex_ : node.rightIndex_, data);
 
             float distSqLine = RVOMath.sqr(agentLeftOfLine) / math.lengthsq(obstacle2.point_ - obstacle1.point_);
 
@@ -256,11 +258,11 @@ namespace RVO
                      * Try obstacle at this node only if agent is on right side of
                      * obstacle (and can see obstacle).
                      */
-                    agent.insertObstacleNeighbor(node.obstacleIndex_, rangeSq, obstacles);
+                    agent.insertObstacleNeighbor(node.obstacleIndex_, rangeSq, data);
                 }
 
                 /* Try other side of line. */
-                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.rightIndex_ : node.leftIndex_, obstacles);
+                this.queryObstacleTreeRecursive(agent, rangeSq, agentLeftOfLine >= 0.0f ? node.rightIndex_ : node.leftIndex_, data);
             }
         }
 
