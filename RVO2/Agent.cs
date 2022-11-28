@@ -40,20 +40,19 @@
  * <http://gamma.cs.unc.edu/RVO2/>
  */
 
-using Unity.Collections;
-
 namespace RVO
 {
     using System;
     using System.Collections.Generic;
+    using Unity.Collections;
     using Unity.Mathematics;
 
     /**
      * <summary>Defines an agent in the simulation.</summary>
      */
-    internal struct Agent : IDisposable
+    internal struct Agent
     {
-        internal struct Pair
+        internal struct Pair : IEquatable<Pair>
         {
             public float Key;
             public int Value;
@@ -63,12 +62,27 @@ namespace RVO
                 this.Key = dist;
                 this.Value = index;
             }
+
+            public bool Equals(Pair other)
+            {
+                return Key.Equals(other.Key) && Value == other.Value;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is Pair other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (Key.GetHashCode() * 397) ^ Value;
+                }
+            }
         }
 
         internal readonly int id_;
-        internal NativeList<Pair> agentNeighbors_;
-        internal NativeList<Pair> obstacleNeighbors_;
-        internal NativeList<Line> orcaLines_;
 
         internal float2 position_;
         internal float2 prefVelocity_;
@@ -86,63 +100,51 @@ namespace RVO
             : this()
         {
             this.id_ = id;
-            this.agentNeighbors_ = new NativeList<Pair>(8, Allocator.Persistent);
-            this.obstacleNeighbors_ = new NativeList<Pair>(8, Allocator.Persistent);
-            this.orcaLines_ = new NativeList<Line>(8, Allocator.Persistent);
-        }
-
-        public void Dispose()
-        {
-            if (this.agentNeighbors_.IsCreated)
-            {
-                this.agentNeighbors_.Dispose();
-                this.agentNeighbors_ = default;
-            }
-
-            if (this.obstacleNeighbors_.IsCreated)
-            {
-                this.obstacleNeighbors_.Dispose();
-                this.obstacleNeighbors_ = default;
-            }
-
-            if (this.orcaLines_.IsCreated)
-            {
-                this.orcaLines_.Dispose();
-                this.orcaLines_ = default;
-            }
         }
 
         /**
          * <summary>Computes the neighbors of this agent.</summary>
          */
-        internal void computeNeighbors(KdTree kdTree, List<Agent> agents, List<Obstacle> obstacles)
+        internal void computeNeighbors(Simulator.SimulationData data)
         {
-            this.obstacleNeighbors_.Clear();
-            float rangeSq = RVOMath.sqr((this.timeHorizonObst_ * this.maxSpeed_) + this.radius_);
-            kdTree.computeObstacleNeighbors(this, rangeSq, obstacles);
+            KdTree kdTree = data.kdTree_;
+            List<Agent> agents = data.agents_;
+            List<Obstacle> obstacles = data.obstacles_;
 
-            this.agentNeighbors_.Clear();
+            var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
+            obstacleNeighbors.Clear();
+            float rangeSq = RVOMath.sqr((this.timeHorizonObst_ * this.maxSpeed_) + this.radius_);
+            kdTree.computeObstacleNeighbors(this, rangeSq, data);
+
+            var agentNeighbors = data.agentNeighbors_[this.id_];
+            agentNeighbors.Clear();
 
             if (this.maxNeighbors_ > 0)
             {
                 rangeSq = RVOMath.sqr(this.neighborDist_);
-                kdTree.computeAgentNeighbors(this.id_, ref rangeSq, agents);
+                kdTree.computeAgentNeighbors(this.id_, ref rangeSq, data);
             }
         }
 
         /**
          * <summary>Computes the new velocity of this agent.</summary>
          */
-        internal void computeNewVelocity(float timeStep, List<Agent> agents, List<Obstacle> obstacles)
+        internal void computeNewVelocity(float timeStep, Simulator.SimulationData data)
         {
-            this.orcaLines_.Clear();
+            List<Agent> agents = data.agents_;
+            List<Obstacle> obstacles = data.obstacles_;
+
+            var orcaLines = data.orcaLines_[this.id_];
+            orcaLines.Clear();
 
             float invTimeHorizonObst = 1.0f / this.timeHorizonObst_;
 
+            var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
+
             /* Create obstacle ORCA lines. */
-            for (int i = 0; i < this.obstacleNeighbors_.Length; ++i)
+            for (int i = 0; i < obstacleNeighbors.Length; ++i)
             {
-                int obstacle1Index = this.obstacleNeighbors_[i].Value;
+                int obstacle1Index = obstacleNeighbors[i].Value;
                 Obstacle obstacle1 = obstacles[obstacle1Index];
                 int obstacle2Index = obstacle1.nextIndex_;
                 Obstacle obstacle2 = obstacles[obstacle2Index];
@@ -156,9 +158,10 @@ namespace RVO
                  */
                 bool alreadyCovered = false;
 
-                for (int j = 0; j < this.orcaLines_.Length; ++j)
+                for (int j = 0; j < orcaLines.Length; ++j)
                 {
-                    if (RVOMath.det((invTimeHorizonObst * relativePosition1) - this.orcaLines_[j].point, this.orcaLines_[j].direction) - (invTimeHorizonObst * this.radius_) >= -RVOMath.RVO_EPSILON && RVOMath.det((invTimeHorizonObst * relativePosition2) - this.orcaLines_[j].point, this.orcaLines_[j].direction) - (invTimeHorizonObst * this.radius_) >= -RVOMath.RVO_EPSILON)
+                    if (RVOMath.det((invTimeHorizonObst * relativePosition1) - orcaLines[j].point, orcaLines[j].direction) - (invTimeHorizonObst * this.radius_) >= -RVOMath.RVO_EPSILON &&
+                        RVOMath.det((invTimeHorizonObst * relativePosition2) - orcaLines[j].point, orcaLines[j].direction) - (invTimeHorizonObst * this.radius_) >= -RVOMath.RVO_EPSILON)
                     {
                         alreadyCovered = true;
 
@@ -190,7 +193,7 @@ namespace RVO
                     {
                         line.point = new float2(0.0f, 0.0f);
                         line.direction = math.normalize(new float2(-relativePosition1.y, relativePosition1.x));
-                        this.orcaLines_.Add(line);
+                        orcaLines.Add(line);
                     }
 
                     continue;
@@ -205,7 +208,7 @@ namespace RVO
                     {
                         line.point = new float2(0.0f, 0.0f);
                         line.direction = math.normalize(new float2(-relativePosition2.y, relativePosition2.x));
-                        this.orcaLines_.Add(line);
+                        orcaLines.Add(line);
                     }
 
                     continue;
@@ -215,7 +218,7 @@ namespace RVO
                     /* Collision with obstacle segment. */
                     line.point = new float2(0.0f, 0.0f);
                     line.direction = -obstacle1.direction_;
-                    this.orcaLines_.Add(line);
+                    orcaLines.Add(line);
 
                     continue;
                 }
@@ -335,7 +338,7 @@ namespace RVO
 
                     line.direction = new float2(unitW.y, -unitW.x);
                     line.point = leftCutOff + (this.radius_ * invTimeHorizonObst * unitW);
-                    this.orcaLines_.Add(line);
+                    orcaLines.Add(line);
 
                     continue;
                 }
@@ -346,7 +349,7 @@ namespace RVO
 
                     line.direction = new float2(unitW.y, -unitW.x);
                     line.point = rightCutOff + (this.radius_ * invTimeHorizonObst * unitW);
-                    this.orcaLines_.Add(line);
+                    orcaLines.Add(line);
 
                     continue;
                 }
@@ -364,7 +367,7 @@ namespace RVO
                     /* Project on cut-off line. */
                     line.direction = -obstacle1.direction_;
                     line.point = leftCutOff + (this.radius_ * invTimeHorizonObst * new float2(-line.direction.y, line.direction.x));
-                    this.orcaLines_.Add(line);
+                    orcaLines.Add(line);
 
                     continue;
                 }
@@ -379,7 +382,7 @@ namespace RVO
 
                     line.direction = leftLegDirection;
                     line.point = leftCutOff + (this.radius_ * invTimeHorizonObst * new float2(-line.direction.y, line.direction.x));
-                    this.orcaLines_.Add(line);
+                    orcaLines.Add(line);
 
                     continue;
                 }
@@ -392,17 +395,18 @@ namespace RVO
 
                 line.direction = -rightLegDirection;
                 line.point = rightCutOff + (this.radius_ * invTimeHorizonObst * new float2(-line.direction.y, line.direction.x));
-                this.orcaLines_.Add(line);
+                orcaLines.Add(line);
             }
 
-            int numObstLines = this.orcaLines_.Length;
+            int numObstLines = orcaLines.Length;
 
             float invTimeHorizon = 1.0f / this.timeHorizon_;
 
             /* Create agent ORCA lines. */
-            for (int i = 0; i < this.agentNeighbors_.Length; ++i)
+            var agentNeighbors = data.agentNeighbors_[this.id_];
+            for (int i = 0; i < agentNeighbors.Length; ++i)
             {
-                int otherIndex = this.agentNeighbors_[i].Value;
+                int otherIndex = agentNeighbors[i].Value;
                 Agent other = agents[otherIndex];
 
                 float2 relativePosition = other.position_ - this.position_;
@@ -468,14 +472,14 @@ namespace RVO
                 }
 
                 line.point = this.velocity_ + (0.5f * u);
-                this.orcaLines_.Add(line);
+                orcaLines.Add(line);
             }
 
-            int lineFail = this.linearProgram2(this.orcaLines_, this.maxSpeed_, this.prefVelocity_, false, ref this.newVelocity_);
+            int lineFail = this.linearProgram2(orcaLines, this.maxSpeed_, this.prefVelocity_, false, ref this.newVelocity_);
 
-            if (lineFail < this.orcaLines_.Length)
+            if (lineFail < orcaLines.Length)
             {
-                this.linearProgram3(this.orcaLines_, numObstLines, lineFail, this.maxSpeed_, ref this.newVelocity_);
+                this.linearProgram3(orcaLines, numObstLines, lineFail, this.maxSpeed_, ref this.newVelocity_);
             }
         }
 
@@ -486,8 +490,10 @@ namespace RVO
          * <param name="agent">A pointer to the agent to be inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertAgentNeighbor(int agentIndex, ref float rangeSq, List<Agent> agents)
+        internal void insertAgentNeighbor(int agentIndex, ref float rangeSq, Simulator.SimulationData data)
         {
+            var agents = data.agents_;
+
             if (this.id_ != agentIndex)
             {
                 Agent agent = agents[agentIndex];
@@ -495,24 +501,26 @@ namespace RVO
 
                 if (distSq < rangeSq)
                 {
-                    if (this.agentNeighbors_.Length < this.maxNeighbors_)
+                    var agentNeighbors = data.agentNeighbors_[this.id_];
+
+                    if (agentNeighbors.Length < this.maxNeighbors_)
                     {
-                        this.agentNeighbors_.Add(new Pair(distSq, agentIndex));
+                        agentNeighbors.Add(new Pair(distSq, agentIndex));
                     }
 
-                    int i = this.agentNeighbors_.Length - 1;
+                    int i = agentNeighbors.Length - 1;
 
-                    while (i != 0 && distSq < this.agentNeighbors_[i - 1].Key)
+                    while (i != 0 && distSq < agentNeighbors[i - 1].Key)
                     {
-                        this.agentNeighbors_[i] = this.agentNeighbors_[i - 1];
+                        agentNeighbors[i] = agentNeighbors[i - 1];
                         --i;
                     }
 
-                    this.agentNeighbors_[i] = new Pair(distSq, agentIndex);
+                    agentNeighbors[i] = new Pair(distSq, agentIndex);
 
-                    if (this.agentNeighbors_.Length == this.maxNeighbors_)
+                    if (agentNeighbors.Length == this.maxNeighbors_)
                     {
-                        rangeSq = this.agentNeighbors_[this.agentNeighbors_.Length - 1].Key;
+                        rangeSq = agentNeighbors[agentNeighbors.Length - 1].Key;
                     }
                 }
             }
@@ -526,8 +534,9 @@ namespace RVO
          * inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertObstacleNeighbor(int obstacleIndex, float rangeSq, List<Obstacle> obstacles)
+        internal void insertObstacleNeighbor(int obstacleIndex, float rangeSq, Simulator.SimulationData data)
         {
+            var obstacles = data.obstacles_;
             Obstacle obstacle = obstacles[obstacleIndex];
             int nextObstacleIndex = obstacle.nextIndex_;
             Obstacle nextObstacle = obstacles[nextObstacleIndex];
@@ -536,17 +545,18 @@ namespace RVO
 
             if (distSq < rangeSq)
             {
-                this.obstacleNeighbors_.Add(new Pair(distSq, obstacleIndex));
+                var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
+                obstacleNeighbors.Add(new Pair(distSq, obstacleIndex));
 
-                int i = this.obstacleNeighbors_.Length - 1;
+                int i = obstacleNeighbors.Length - 1;
 
-                while (i != 0 && distSq < this.obstacleNeighbors_[i - 1].Key)
+                while (i != 0 && distSq < obstacleNeighbors[i - 1].Key)
                 {
-                    this.obstacleNeighbors_[i] = this.obstacleNeighbors_[i - 1];
+                    obstacleNeighbors[i] = obstacleNeighbors[i - 1];
                     --i;
                 }
 
-                this.obstacleNeighbors_[i] = new Pair(distSq, obstacleIndex);
+                obstacleNeighbors[i] = new Pair(distSq, obstacleIndex);
             }
         }
 

@@ -264,6 +264,7 @@ namespace RVO
         private void OnDestroy()
         {
             this.simulator.Clear();
+            this.simulator.Dispose();
         }
     }
 }
