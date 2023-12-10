@@ -105,10 +105,12 @@ namespace RVO
                 return;
             }
 
+            this.simulator.CompleteImmediate();
+
             for (int i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
             {
                 float2 o = this.simulator.getObstacleVertex(i);
-                Gizmos.DrawSphere((Vector2)o, 1);
+                //Gizmos.DrawSphere((Vector2)o, 1);
 
                 int last = i;
 

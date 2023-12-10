@@ -42,6 +42,7 @@
 
 namespace RVO
 {
+    using Unity.Burst;
     using Unity.Mathematics;
 
     /**
@@ -68,6 +69,7 @@ namespace RVO
          * <param name="vector2">The bottom row of the two-dimensional square
          * matrix.</param>
          */
+        [BurstCompile]
         internal static float det(float2 vector1, float2 vector2)
         {
             return (vector1.x * vector2.y) - (vector1.y * vector2.x);
@@ -86,6 +88,7 @@ namespace RVO
          * <param name="vector3">The point to which the squared distance is to
          * be calculated.</param>
          */
+        [BurstCompile]
         internal static float distSqPointLineSegment(float2 vector1, float2 vector2, float2 vector3)
         {
             float r = math.dot(vector3 - vector1, vector2 - vector1) / math.lengthsq(vector2 - vector1);
@@ -115,6 +118,7 @@ namespace RVO
          * <param name="c">The point to which the signed distance is to be
          * calculated.</param>
          */
+        [BurstCompile]
         internal static float leftOf(float2 a, float2 b, float2 c)
         {
             return det(a - c, b - a);
@@ -127,6 +131,7 @@ namespace RVO
          *
          * <param name="scalar">The float to be squared.</param>
          */
+        [BurstCompile]
         internal static float sqr(float scalar)
         {
             return scalar * scalar;
@@ -142,6 +147,7 @@ namespace RVO
          * <param name="a">The first pair of scalar values.</param>
          * <param name="b">The second pair of scalar values.</param>
          */
+        [BurstCompile]
         internal static bool less(float2 a, float2 b)
         {
             return a.x < b.x || (!(b.x < a.x) && a.y < b.y);
@@ -157,6 +163,7 @@ namespace RVO
          * <param name="a">The first pair of scalar values.</param>
          * <param name="b">The second pair of scalar values.</param>
          */
+        [BurstCompile]
         internal static bool lessequal(float2 a, float2 b)
         {
             return (a.x == b.x && a.y == b.y) || less(a, b);
@@ -172,6 +179,7 @@ namespace RVO
          * <param name="a">The first pair of scalar values.</param>
          * <param name="b">The second pair of scalar values.</param>
          */
+        [BurstCompile]
         internal static bool greater(float2 a, float2 b)
         {
             return !lessequal(a, b);
@@ -188,6 +196,7 @@ namespace RVO
          * <param name="a">The first pair of scalar values.</param>
          * <param name="b">The second pair of scalar values.</param>
          */
+        [BurstCompile]
         internal static bool greaterequal(float2 a, float2 b)
         {
             return !less(a, b);

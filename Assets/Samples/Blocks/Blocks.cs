@@ -159,6 +159,13 @@ namespace RVO
 
         private void OnDrawGizmos()
         {
+            if (this.simulator == null)
+            {
+                return;
+            }
+
+            this.simulator.CompleteImmediate();
+
             for (int i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
             {
                 float2 o = this.simulator.getObstacleVertex(i);

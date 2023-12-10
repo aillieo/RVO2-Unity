@@ -48,56 +48,137 @@ namespace RVO
     using Unity.Collections;
     using Unity.Jobs;
     using Unity.Mathematics;
+    using Unity.Burst;
 
     /**
      * <summary>Defines the simulation.</summary>
      */
     public class Simulator : IDisposable
     {
+        [BurstCompile]
         private struct buildJob : IJob
         {
+            private KdTree kdTree;
+            private NativeArray<Agent>.ReadOnly agents;
+
+            public buildJob(SimulationData data_)
+                : this()
+            {
+                this.kdTree = data_.kdTree_;
+                this.agents = data_.agents_.AsParallelReader();
+            }
+
             public void Execute()
             {
-
+                buildAgentTree(ref kdTree, in agents);
             }
         }
 
+        [BurstCompile]
         private struct computeJob : IJobParallelFor
         {
+            [ReadOnly]
+            private NativeArray<Agent> agents_;
+            [ReadOnly]
+            private NativeArray<Obstacle> obstacles_;
+            private KdTree.ReadOnly kdTree_;
+            private float timeStep_;
+            [WriteOnly]
+            internal NativeArray<float2> agentResult_;
+
+            public computeJob(SimulationData data_, NativeArray<float2> agentResult_)
+                : this()
+            {
+                this.agents_ = data_.agents_.AsArray();
+                this.obstacles_ = data_.obstacles_.AsArray();
+                this.kdTree_ = data_.kdTree_.AsParallelReader();
+                this.timeStep_ = data_.timeStep_;
+                this.agentResult_ = agentResult_;
+            }
+
             public void Execute(int index)
             {
+                var agentNo = index;
+                var agents = this.agents_;
 
+                Agent agent = agents[agentNo];
+
+                NativeList<Agent.Pair> agentNeighbors_ = new NativeList<Agent.Pair>(Allocator.Temp);
+                NativeList<Agent.Pair> obstacleNeighbors_ = new NativeList<Agent.Pair>(Allocator.Temp);
+
+                agent.computeNeighbors(in this.kdTree_, in this.agents_, in this.obstacles_, ref agentNeighbors_, ref obstacleNeighbors_);
+                agent.computeNewVelocity(this.timeStep_, in this.agents_, in this.obstacles_, ref agentNeighbors_, ref obstacleNeighbors_);
+                //agents[agentNo] = agent;
+                this.agentResult_[agentNo] = agent.newVelocity_;
+
+                agentNeighbors_.Dispose();
+                obstacleNeighbors_.Dispose();
             }
         }
 
+        [BurstCompile]
         private struct updateJob : IJobParallelFor
         {
+            private NativeArray<Agent> agents_;
+            [ReadOnly]
+            internal NativeArray<float2> agentResult_;
+            private float timeStep_;
+
+            public updateJob(SimulationData data_, NativeArray<float2> agentResult_)
+                : this()
+            {
+                this.agents_ = data_.agents_.AsArray();
+                this.timeStep_ = data_.timeStep_;
+                this.agentResult_ = agentResult_;
+            }
+
             public void Execute(int index)
             {
+                var agentNo = index;
+                var agents = this.agents_;
 
+                Agent agent = agents[agentNo];
+                agent.newVelocity_ = agentResult_[agentNo];
+                agent.update(this.timeStep_);
+                agents[agentNo] = agent;
+            }
+        }
+
+        private struct updateTimeJob : IJob
+        {
+            private NativeReference<float> globalTime;
+            private float timeStep;
+
+            public updateTimeJob(NativeReference<float> globalTime, float timeStep)
+                : this()
+            {
+                this.globalTime = globalTime;
+                this.timeStep = timeStep;
+            }
+
+            public void Execute()
+            {
+                globalTime.Value += timeStep;
             }
         }
 
         internal struct SimulationData : IDisposable
         {
-            internal List<Agent> agents_;
-            internal List<Obstacle> obstacles_;
+            internal NativeList<Agent> agents_;
+            internal NativeList<Obstacle> obstacles_;
             internal KdTree kdTree_;
-
-            // NativeParallelMultiHashMap
-            internal Dictionary<int, NativeList<Agent.Pair>> agentNeighbors_;
-            internal Dictionary<int, NativeList<Agent.Pair>> obstacleNeighbors_;
-            internal Dictionary<int, NativeList<Line>> orcaLines_;
+            internal float timeStep_;
 
             public void Dispose()
             {
                 this.kdTree_.Dispose();
+
+                this.agents_.Dispose();
+                this.obstacles_.Dispose();
             }
         }
 
         internal SimulationData data;
-
-        internal float timeStep_;
 
         private Agent defaultAgent_;
 
@@ -112,14 +193,11 @@ namespace RVO
          */
         public Simulator()
         {
-            data = new SimulationData
+            this.data = new SimulationData
             {
-                agents_ = new List<Agent>(),
-                obstacles_ = new List<Obstacle>(),
+                agents_ = new NativeList<Agent>(8, Allocator.Persistent),
+                obstacles_ = new NativeList<Obstacle>(8, Allocator.Persistent),
                 kdTree_ = new KdTree(0, 0),
-                agentNeighbors_ = new Dictionary<int, NativeList<Agent.Pair>>(),
-                obstacleNeighbors_ = new Dictionary<int, NativeList<Agent.Pair>>(),
-                orcaLines_ = new Dictionary<int, NativeList<Line>>(),
             };
 
             this.Clear();
@@ -128,12 +206,8 @@ namespace RVO
         private int NewAgent()
         {
             var agents = this.data.agents_;
-            int newIndex = agents.Count;
+            int newIndex = agents.Length;
             Agent agent = new Agent(newIndex);
-
-            this.data.agentNeighbors_[newIndex] = new NativeList<Agent.Pair>(8, Allocator.Persistent);
-            this.data.obstacleNeighbors_[newIndex] = new NativeList<Agent.Pair>(8, Allocator.Persistent);
-            this.data.orcaLines_[newIndex] = new NativeList<Line>(8, Allocator.Persistent);
 
             agents.Add(agent);
             this.data.agents_ = agents;
@@ -223,7 +297,7 @@ namespace RVO
         {
             var obstacles = this.data.obstacles_;
 
-            int newIndex = obstacles.Count;
+            int newIndex = obstacles.Length;
             Obstacle obstacle = new Obstacle(newIndex, point);
             obstacles.Add(obstacle);
 
@@ -253,7 +327,7 @@ namespace RVO
             }
 
             var obstacles = this.data.obstacles_;
-            int obstacleNo = obstacles.Count;
+            int obstacleNo = obstacles.Length;
 
             for (int i = 0; i < vertices.Count; ++i)
             {
@@ -299,14 +373,21 @@ namespace RVO
             return obstacleNo;
         }
 
+        public void CompleteImmediate()
+        {
+            this.jobHandle.CheckAndComplete();
+        }
+
         /**
          * <summary>Clears the simulation.</summary>
          */
         public void Clear()
         {
+            this.CompleteImmediate();
+
             var agents = this.data.agents_;
 
-            if (agents != null && agents.Count > 0)
+            if (agents.IsCreated && agents.Length > 0)
             {
                 agents.Clear();
             }
@@ -318,79 +399,47 @@ namespace RVO
             this.data.kdTree_.Clear();
 
             var obstacles = this.data.obstacles_;
-            if (obstacles != null && obstacles.Count > 0)
+            if (obstacles.IsCreated && obstacles.Length > 0)
             {
                 obstacles.Clear();
             }
 
             this.data.obstacles_ = obstacles;
 
-            var agentNeighbors = this.data.agentNeighbors_;
-            for (int i = 0; i < agentNeighbors.Count; ++i)
-            {
-                agentNeighbors[i].Dispose();
-                agentNeighbors[i] = default;
-            }
-
-            agentNeighbors.Clear();
-
-            var obstacleNeighbors = this.data.obstacleNeighbors_;
-            for (int i = 0; i < obstacleNeighbors.Count; ++i)
-            {
-                obstacleNeighbors[i].Dispose();
-                obstacleNeighbors[i] = default;
-            }
-
-            obstacleNeighbors.Clear();
-
-            var orcaLines = this.data.orcaLines_;
-            for (int i = 0; i < orcaLines.Count; ++i)
-            {
-                orcaLines[i].Dispose();
-                orcaLines[i] = default;
-            }
-
-            orcaLines.Clear();
-
             this.globalTime_ = 0.0f;
-            this.timeStep_ = 0.1f;
+            this.data.timeStep_ = 0.1f;
 
             this.SetNumWorkers(0);
+        }
+
+        internal static void ensureTreeCapacity(ref KdTree kdTree, int agentCount)
+        {
+            if (kdTree.agents_.Length != agentCount)
+            {
+                kdTree.agents_.Resize(agentCount, Allocator.Persistent);
+                for (int i = 0; i < agentCount; ++i)
+                {
+                    kdTree.agents_[i] = i;
+                }
+
+                int agentTreeSize = 2 * agentCount;
+                kdTree.agentTree_.Resize(agentTreeSize, Allocator.Persistent);
+                for (int i = 0; i < agentTreeSize; ++i)
+                {
+                    kdTree.agentTree_[i] = default(KdTree.AgentTreeNode);
+                }
+            }
         }
 
         /**
          * <summary>Builds an agent k-D tree.</summary>
          */
-        internal void buildAgentTree()
+        internal static void buildAgentTree(ref KdTree kdTree, in NativeArray<Agent>.ReadOnly agents)
         {
-            var kdTree = this.data.kdTree_;
-
-            if (!kdTree.agents_.IsCreated || kdTree.agents_.Length != this.data.agents_.Count)
-            {
-                kdTree.agents_.Clear();
-                kdTree.agents_.Capacity = this.data.agents_.Count;
-
-                for (int i = 0; i < this.data.agents_.Count; ++i)
-                {
-                    kdTree.agents_.Add(i);
-                }
-
-                int agentTreeSize = 2 * kdTree.agents_.Length;
-                kdTree.agentTree_.Clear();
-                kdTree.agentTree_.Capacity = agentTreeSize;
-
-                for (int i = 0; i < agentTreeSize; ++i)
-                {
-                    kdTree.agentTree_.Add(default(KdTree.AgentTreeNode));
-                }
-            }
-
             if (kdTree.agents_.Length != 0)
             {
-                this.buildAgentTreeRecursive(0, kdTree.agents_.Length, 0, this.data.agents_);
+                buildAgentTreeRecursive(ref kdTree, 0, kdTree.agents_.Length, 0, agents);
             }
-
-            this.data.kdTree_ = kdTree;
         }
 
         /**
@@ -400,18 +449,20 @@ namespace RVO
         {
             var obstacles = this.data.obstacles_;
 
-            var kdTree = this.data.kdTree_;
-            kdTree.obstacleTreeNodes_.Clear();
-            this.data.kdTree_ = kdTree;
+            //var kdTree = this.data.kdTree_;
+            //kdTree.obstacleTreeNodes_.Clear();
+            //this.data.kdTree_ = kdTree;
 
-            List<int> obstacleIds = new List<int>(obstacles.Count);
+            List<int> obstacleIds = new List<int>(obstacles.Length);
 
-            for (int i = 0; i < obstacles.Count; ++i)
+            for (int i = 0; i < obstacles.Length; ++i)
             {
                 obstacleIds.Add(i);
             }
 
-            this.buildObstacleTreeRecursive(obstacleIds);
+            var kdTree = this.data.kdTree_;
+            this.buildObstacleTreeRecursive(ref kdTree, obstacleIds);
+            this.data.kdTree_ = kdTree;
         }
 
         /**
@@ -422,9 +473,8 @@ namespace RVO
          * <param name="end">The ending agent k-D tree node index.</param>
          * <param name="nodeIndex">The current agent k-D tree node index.</param>
          */
-        internal void buildAgentTreeRecursive(int begin, int end, int nodeIndex, List<Agent> agents)
+        internal static void buildAgentTreeRecursive(ref KdTree kdTree, int begin, int end, int nodeIndex, in NativeArray<Agent>.ReadOnly agents)
         {
-            var kdTree = this.data.kdTree_;
             KdTree.AgentTreeNode node = kdTree.agentTree_[nodeIndex];
             node.begin_ = begin;
             node.end_ = end;
@@ -502,8 +552,8 @@ namespace RVO
                 node.right_ = nodeIndex + (2 * leftSize);
                 kdTree.agentTree_[nodeIndex] = node;
 
-                this.buildAgentTreeRecursive(begin, left, kdTree.agentTree_[nodeIndex].left_, agents);
-                this.buildAgentTreeRecursive(left, end, kdTree.agentTree_[nodeIndex].right_, agents);
+                buildAgentTreeRecursive(ref kdTree, begin, left, kdTree.agentTree_[nodeIndex].left_, agents);
+                buildAgentTreeRecursive(ref kdTree, left, end, kdTree.agentTree_[nodeIndex].right_, agents);
             }
         }
 
@@ -515,17 +565,16 @@ namespace RVO
          *
          * <param name="obstacles">A list of obstacles.</param>
          */
-        internal int buildObstacleTreeRecursive(List<int> obstacleIds)
+        internal int buildObstacleTreeRecursive(ref KdTree kdTree, List<int> obstacleIds)
         {
             if (obstacleIds.Count == 0)
             {
                 return -1;
             }
 
-            var kdTree = this.data.kdTree_;
-
             int nodeIndex = kdTree.NewObstacleTreeNode();
             KdTree.ObstacleTreeNode node = kdTree.obstacleTreeNodes_[nodeIndex];
+            this.data.kdTree_ = kdTree;
 
             int optimalSplit = 0;
             int minLeft = obstacleIds.Count;
@@ -681,12 +730,12 @@ namespace RVO
                 node.obstacleIndex_ = obstacleI1Index;
                 kdTree.obstacleTreeNodes_[nodeIndex] = node;
 
-                var leftIndex = this.buildObstacleTreeRecursive(leftObstacles);
+                var leftIndex = this.buildObstacleTreeRecursive(ref kdTree, leftObstacles);
                 node = kdTree.obstacleTreeNodes_[nodeIndex];
                 node.leftIndex_ = leftIndex;
                 kdTree.obstacleTreeNodes_[nodeIndex] = node;
 
-                var rightIndex = this.buildObstacleTreeRecursive(rightObstacles);
+                var rightIndex = this.buildObstacleTreeRecursive(ref kdTree, rightObstacles);
                 node = kdTree.obstacleTreeNodes_[nodeIndex];
                 node.rightIndex_ = rightIndex;
                 kdTree.obstacleTreeNodes_[nodeIndex] = node;
@@ -703,33 +752,31 @@ namespace RVO
          */
         public JobHandle doStep()
         {
+            KdTree kdTree = this.data.kdTree_;
+            
+            ensureTreeCapacity(ref kdTree, this.data.agents_.Length);
+            this.data.kdTree_ = kdTree;
+
             // job0
-            JobHandle jobHandle0 = new buildJob().Schedule();
-            this.buildAgentTree();
+            JobHandle jobHandle0 = new buildJob(this.data).Schedule();
 
             // job1
-            JobHandle jobHandle1 = new computeJob().Schedule(1, 1, jobHandle0);
-            var agents = this.data.agents_;
-            for (int agentNo = 0; agentNo < agents.Count; ++agentNo)
-            {
-                Agent agent = agents[agentNo];
-                agent.computeNeighbors(this.data);
-                agent.computeNewVelocity(this.timeStep_, this.data);
-                agents[agentNo] = agent;
-            }
+            var agentResult = new NativeArray<float2>(this.data.agents_.Length, Allocator.TempJob);
+            JobHandle jobHandle1 = new computeJob(this.data, agentResult).Schedule(this.data.agents_.Length, 1, jobHandle0);
 
             // job2
-            JobHandle jobHandle2 = new updateJob().Schedule(1, 1, jobHandle1);
-            for (int agentNo = 0; agentNo < agents.Count; ++agentNo)
-            {
-                Agent agent = agents[agentNo];
-                agent.update(this.timeStep_);
-                agents[agentNo] = agent;
-            }
+            JobHandle jobHandle2 = new updateJob(this.data, agentResult).Schedule(this.data.agents_.Length, 1, jobHandle1);
+            agentResult.Dispose(jobHandle2);
 
-            this.globalTime_ += this.timeStep_;
+            // job3
+            var globalTime = new NativeReference<float>(this.globalTime_, Allocator.TempJob);
+            JobHandle jobHandle3 = new updateTimeJob(globalTime, this.data.timeStep_).Schedule(jobHandle2);
+            jobHandle3.Complete();
 
-            this.jobHandle = jobHandle2;
+            this.globalTime_ = globalTime.Value;
+            globalTime.Dispose(jobHandle3);
+
+            this.jobHandle = jobHandle3;
             return this.jobHandle;
         }
 
@@ -746,7 +793,7 @@ namespace RVO
          */
         public int getAgentAgentNeighbor(int agentNo, int neighborNo)
         {
-            return this.data.agentNeighbors_[agentNo][neighborNo].Value;
+            throw new NotImplementedException();
         }
 
         /**
@@ -803,7 +850,7 @@ namespace RVO
          */
         public int getAgentNumAgentNeighbors(int agentNo)
         {
-            return this.data.agentNeighbors_[agentNo].Length;
+            throw new NotImplementedException();
         }
 
         /**
@@ -818,7 +865,7 @@ namespace RVO
          */
         public int getAgentNumObstacleNeighbors(int agentNo)
         {
-            return this.data.obstacleNeighbors_[agentNo].Length;
+            throw new NotImplementedException();
         }
 
         /**
@@ -835,7 +882,7 @@ namespace RVO
          */
         public int getAgentObstacleNeighbor(int agentNo, int neighborNo)
         {
-            return this.data.obstacleNeighbors_[agentNo][neighborNo].Value;
+            throw new NotImplementedException();
         }
 
         /**
@@ -853,7 +900,7 @@ namespace RVO
          */
         public IEnumerable<Line> getAgentOrcaLines(int agentNo)
         {
-            return this.data.orcaLines_[agentNo];
+            throw new NotImplementedException();
         }
 
         /**
@@ -960,7 +1007,7 @@ namespace RVO
          */
         public int getNumAgents()
         {
-            return this.data.agents_.Count;
+            return this.data.agents_.Length;
         }
 
         /**
@@ -971,7 +1018,7 @@ namespace RVO
          */
         public int getNumObstacleVertices()
         {
-            return this.data.obstacles_.Count;
+            return this.data.obstacles_.Length;
         }
 
         /**
@@ -1036,7 +1083,7 @@ namespace RVO
          */
         public float getTimeStep()
         {
-            return this.timeStep_;
+            return this.data.timeStep_;
         }
 
         /**
@@ -1067,9 +1114,11 @@ namespace RVO
          */
         public bool queryVisibility(float2 point1, float2 point2, float radius)
         {
-            var kdTree = this.data.kdTree_;
-            var obstacles = this.data.obstacles_;
-            return kdTree.queryVisibility(point1, point2, radius, obstacles);
+            throw new NotImplementedException();
+
+            //var kdTree = this.data.kdTree_;
+            //var obstacles = this.data.obstacles_;
+            //return kdTree.queryVisibility(point1, point2, radius, obstacles);
         }
 
         /**
@@ -1302,7 +1351,7 @@ namespace RVO
          */
         public void setTimeStep(float timeStep)
         {
-            this.timeStep_ = timeStep;
+            this.data.timeStep_ = timeStep;
         }
 
         public void Dispose()
