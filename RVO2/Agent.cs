@@ -105,41 +105,26 @@ namespace RVO
         /**
          * <summary>Computes the neighbors of this agent.</summary>
          */
-        internal void computeNeighbors(Simulator.SimulationData data)
+        internal void computeNeighbors(in KdTree.ReadOnly kdTree, in NativeArray<Agent> agents, in NativeArray<Obstacle> obstacles, ref NativeList<Pair> agentNeighbors_, ref NativeList<Pair> obstacleNeighbors)
         {
-            KdTree kdTree = data.kdTree_;
-            List<Agent> agents = data.agents_;
-            List<Obstacle> obstacles = data.obstacles_;
-
-            var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
-            obstacleNeighbors.Clear();
             float rangeSq = RVOMath.sqr((this.timeHorizonObst_ * this.maxSpeed_) + this.radius_);
-            kdTree.computeObstacleNeighbors(this, rangeSq, data);
-
-            var agentNeighbors = data.agentNeighbors_[this.id_];
-            agentNeighbors.Clear();
+            kdTree.computeObstacleNeighbors(this, rangeSq, in obstacles, ref obstacleNeighbors);
 
             if (this.maxNeighbors_ > 0)
             {
                 rangeSq = RVOMath.sqr(this.neighborDist_);
-                kdTree.computeAgentNeighbors(this.id_, ref rangeSq, data);
+                kdTree.computeAgentNeighbors(this.id_, ref rangeSq, in agents, ref agentNeighbors_);
             }
         }
 
         /**
          * <summary>Computes the new velocity of this agent.</summary>
          */
-        internal void computeNewVelocity(float timeStep, Simulator.SimulationData data)
+        internal void computeNewVelocity(float timeStep, in NativeArray<Agent> agents, in NativeArray<Obstacle> obstacles, ref NativeList<Pair> agentNeighbors, ref NativeList<Pair> obstacleNeighbors)
         {
-            List<Agent> agents = data.agents_;
-            List<Obstacle> obstacles = data.obstacles_;
-
-            var orcaLines = data.orcaLines_[this.id_];
-            orcaLines.Clear();
+            NativeList<Line> orcaLines = new NativeList<Line>(Allocator.Temp);
 
             float invTimeHorizonObst = 1.0f / this.timeHorizonObst_;
-
-            var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
 
             /* Create obstacle ORCA lines. */
             for (int i = 0; i < obstacleNeighbors.Length; ++i)
@@ -403,7 +388,6 @@ namespace RVO
             float invTimeHorizon = 1.0f / this.timeHorizon_;
 
             /* Create agent ORCA lines. */
-            var agentNeighbors = data.agentNeighbors_[this.id_];
             for (int i = 0; i < agentNeighbors.Length; ++i)
             {
                 int otherIndex = agentNeighbors[i].Value;
@@ -481,6 +465,8 @@ namespace RVO
             {
                 this.linearProgram3(orcaLines, numObstLines, lineFail, this.maxSpeed_, ref this.newVelocity_);
             }
+
+            orcaLines.Dispose();
         }
 
         /**
@@ -490,10 +476,8 @@ namespace RVO
          * <param name="agent">A pointer to the agent to be inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertAgentNeighbor(int agentIndex, ref float rangeSq, Simulator.SimulationData data)
+        internal void insertAgentNeighbor(int agentIndex, ref float rangeSq, in NativeArray<Agent> agents, ref NativeList<Agent.Pair> agentNeighbors)
         {
-            var agents = data.agents_;
-
             if (this.id_ != agentIndex)
             {
                 Agent agent = agents[agentIndex];
@@ -501,8 +485,6 @@ namespace RVO
 
                 if (distSq < rangeSq)
                 {
-                    var agentNeighbors = data.agentNeighbors_[this.id_];
-
                     if (agentNeighbors.Length < this.maxNeighbors_)
                     {
                         agentNeighbors.Add(new Pair(distSq, agentIndex));
@@ -534,9 +516,8 @@ namespace RVO
          * inserted.</param>
          * <param name="rangeSq">The squared range around this agent.</param>
          */
-        internal void insertObstacleNeighbor(int obstacleIndex, float rangeSq, Simulator.SimulationData data)
+        internal void insertObstacleNeighbor(int obstacleIndex, float rangeSq, in NativeArray<Obstacle> obstacles, ref NativeList<Agent.Pair> obstacleNeighbors)
         {
-            var obstacles = data.obstacles_;
             Obstacle obstacle = obstacles[obstacleIndex];
             int nextObstacleIndex = obstacle.nextIndex_;
             Obstacle nextObstacle = obstacles[nextObstacleIndex];
@@ -545,7 +526,6 @@ namespace RVO
 
             if (distSq < rangeSq)
             {
-                var obstacleNeighbors = data.obstacleNeighbors_[this.id_];
                 obstacleNeighbors.Add(new Pair(distSq, obstacleIndex));
 
                 int i = obstacleNeighbors.Length - 1;
