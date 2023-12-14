@@ -49,19 +49,19 @@ namespace RVO
      */
     internal struct Obstacle
     {
-        internal readonly int id_;
-        internal readonly float2 point_;
+        internal readonly int id;
+        internal readonly float2 point;
 
-        internal int nextIndex_;
-        internal int previousIndex_;
-        internal bool convex_;
-        internal float2 direction_;
+        internal int nextIndex;
+        internal int previousIndex;
+        internal bool convex;
+        internal float2 direction;
 
         internal Obstacle(int id, float2 point)
             : this()
         {
-            this.id_ = id;
-            this.point_ = point;
+            this.id = id;
+            this.point = point;
         }
     }
 }

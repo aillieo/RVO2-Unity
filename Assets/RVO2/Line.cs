@@ -55,19 +55,19 @@ namespace RVO
 
         public bool Equals(Line other)
         {
-            return direction.Equals(other.direction) && point.Equals(other.point);
+            return this.direction.Equals(other.direction) && this.point.Equals(other.point);
         }
 
         public override bool Equals(object obj)
         {
-            return obj is Line other && Equals(other);
+            return obj is Line other && this.Equals(other);
         }
 
         public override int GetHashCode()
         {
             unchecked
             {
-                return (direction.GetHashCode() * 397) ^ point.GetHashCode();
+                return (this.direction.GetHashCode() * 397) ^ this.point.GetHashCode();
             }
         }
     }

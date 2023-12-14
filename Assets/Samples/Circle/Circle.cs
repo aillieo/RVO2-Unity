@@ -80,18 +80,18 @@ namespace RVO
              * Specify the default parameters for agents that are subsequently
              * added.
              */
-            this.simulator.setAgentDefaults(15.0f, 10, 10.0f, 10.0f, 1.5f, 2.0f, new float2(0.0f, 0.0f));
+            this.simulator.setAgentDefaults(15f, 10, 10f, 10f, 1.5f, 2f, new float2(0f, 0f));
 
             /*
              * Add agents, specifying their start position, and store their
              * goals on the opposite side of the environment.
              */
-            for (int i = 0; i < 250; ++i)
+            for (var i = 0; i < 250; ++i)
             {
-                this.simulator.addAgent(200.0f *
+                this.simulator.addAgent(200f *
                     new float2(
-                        (float)Math.Cos(i * 2.0f * Math.PI / 250.0f),
-                        (float)Math.Sin(i * 2.0f * Math.PI / 250.0f)));
+                        (float)Math.Cos(i * 2f * Math.PI / 250f),
+                        (float)Math.Sin(i * 2f * Math.PI / 250f)));
                 this.goals.Add(-this.simulator.getAgentPosition(i));
             }
         }
@@ -105,10 +105,10 @@ namespace RVO
 
             this.simulator.CompleteImmediate();
 
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 position = this.simulator.getAgentPosition(i);
-                Gizmos.DrawSphere((Vector2)position, 1);
+                Gizmos.DrawSphere((Vector2)position, 1.5f);
             }
         }
 
@@ -118,11 +118,11 @@ namespace RVO
              * Set the preferred velocity to be a vector of unit magnitude
              * (speed) in the direction of the goal.
              */
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 goalVector = this.goals[i] - this.simulator.getAgentPosition(i);
 
-                if (math.lengthsq(goalVector) > 1.0f)
+                if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
@@ -134,7 +134,7 @@ namespace RVO
         private bool reachedGoal()
         {
             /* Check if all agents have reached their goals. */
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > this.simulator.getAgentRadius(i) * this.simulator.getAgentRadius(i))
                 {

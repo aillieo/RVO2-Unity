@@ -86,27 +86,27 @@ namespace RVO
              * Specify the default parameters for agents that are subsequently
              * added.
              */
-            this.simulator.setAgentDefaults(15.0f, 10, 5.0f, 5.0f, 2.0f, 2.0f, new float2(0.0f, 0.0f));
+            this.simulator.setAgentDefaults(15f, 10, 5f, 5f, 2f, 2f, new float2(0f, 0f));
 
             /*
              * Add agents, specifying their start position, and store their
              * goals on the opposite side of the environment.
              */
-            for (int i = 0; i < 5; ++i)
+            for (var i = 0; i < 5; ++i)
             {
-                for (int j = 0; j < 5; ++j)
+                for (var j = 0; j < 5; ++j)
                 {
-                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), 55.0f + (j * 10.0f)));
-                    this.goals.Add(new float2(-75.0f, -75.0f));
+                    this.simulator.addAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
+                    this.goals.Add(new float2(-75f, -75f));
 
-                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), 55.0f + (j * 10.0f)));
-                    this.goals.Add(new float2(75.0f, -75.0f));
+                    this.simulator.addAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
+                    this.goals.Add(new float2(75f, -75f));
 
-                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), -55.0f - (j * 10.0f)));
-                    this.goals.Add(new float2(-75.0f, 75.0f));
+                    this.simulator.addAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
+                    this.goals.Add(new float2(-75f, 75f));
 
-                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), -55.0f - (j * 10.0f)));
-                    this.goals.Add(new float2(75.0f, 75.0f));
+                    this.simulator.addAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
+                    this.goals.Add(new float2(75f, 75f));
                 }
             }
 
@@ -116,37 +116,37 @@ namespace RVO
              */
             IList<float2> obstacle1 = new List<float2>
             {
-                new float2(-10.0f, 40.0f),
-                new float2(-40.0f, 40.0f),
-                new float2(-40.0f, 10.0f),
-                new float2(-10.0f, 10.0f),
+                new float2(-10f, 40f),
+                new float2(-40f, 40f),
+                new float2(-40f, 10f),
+                new float2(-10f, 10f),
             };
             this.simulator.addObstacle(obstacle1);
 
             IList<float2> obstacle2 = new List<float2>
             {
-                new float2(10.0f, 40.0f),
-                new float2(10.0f, 10.0f),
-                new float2(40.0f, 10.0f),
-                new float2(40.0f, 40.0f),
+                new float2(10f, 40f),
+                new float2(10f, 10f),
+                new float2(40f, 10f),
+                new float2(40f, 40f),
             };
             this.simulator.addObstacle(obstacle2);
 
             IList<float2> obstacle3 = new List<float2>
             {
-                new float2(10.0f, -40.0f),
-                new float2(40.0f, -40.0f),
-                new float2(40.0f, -10.0f),
-                new float2(10.0f, -10.0f),
+                new float2(10f, -40f),
+                new float2(40f, -40f),
+                new float2(40f, -10f),
+                new float2(10f, -10f),
             };
             this.simulator.addObstacle(obstacle3);
 
             IList<float2> obstacle4 = new List<float2>
             {
-                new float2(-10.0f, -40.0f),
-                new float2(-10.0f, -10.0f),
-                new float2(-40.0f, -10.0f),
-                new float2(-40.0f, -40.0f),
+                new float2(-10f, -40f),
+                new float2(-10f, -10f),
+                new float2(-40f, -10f),
+                new float2(-40f, -40f),
             };
             this.simulator.addObstacle(obstacle4);
 
@@ -166,16 +166,13 @@ namespace RVO
 
             this.simulator.CompleteImmediate();
 
-            for (int i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
+            for (var i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
             {
-                float2 o = this.simulator.getObstacleVertex(i);
-                Gizmos.DrawSphere((Vector2)o, 1);
-
-                int last = i;
+                var last = i;
 
                 while (true)
                 {
-                    int next = this.simulator.getNextObstacleVertexNo(last);
+                    var next = this.simulator.getNextObstacleVertexNo(last);
 
                     float2 p0 = this.simulator.getObstacleVertex(last);
                     float2 p1 = this.simulator.getObstacleVertex(next);
@@ -193,10 +190,10 @@ namespace RVO
                 i = last;
             }
 
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 position = this.simulator.getAgentPosition(i);
-                Gizmos.DrawSphere((Vector2)position, 1);
+                Gizmos.DrawSphere((Vector2)position, 2);
             }
         }
 
@@ -206,11 +203,11 @@ namespace RVO
              * Set the preferred velocity to be a vector of unit magnitude
              * (speed) in the direction of the goal.
              */
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 goalVector = this.goals[i] - this.simulator.getAgentPosition(i);
 
-                if (math.lengthsq(goalVector) > 1.0f)
+                if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
@@ -218,8 +215,8 @@ namespace RVO
                 this.simulator.setAgentPrefVelocity(i, goalVector);
 
                 /* Perturb a little to avoid deadlocks due to perfect symmetry. */
-                float angle = (float)this.random.NextDouble() * 2.0f * (float)Math.PI;
-                float dist = (float)this.random.NextDouble() * 0.0001f;
+                var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
+                var dist = (float)this.random.NextDouble() * 0.0001f;
 
                 this.simulator.setAgentPrefVelocity(
                     i,
@@ -230,9 +227,9 @@ namespace RVO
         private bool reachedGoal()
         {
             /* Check if all agents have reached their goals. */
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
-                if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > 400.0f)
+                if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > 400f)
                 {
                     return false;
                 }
