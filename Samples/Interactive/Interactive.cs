@@ -23,6 +23,13 @@ namespace RVO
 
         private CustomSampler sampler;
 
+        private enum TouchMode
+        {
+            Add = 0,
+            Move = 1,
+            Remove = 2,
+        }
+
         private void setupScenario()
         {
             /* Specify the global time step of the simulation. */
@@ -32,22 +39,22 @@ namespace RVO
              * Specify the default parameters for agents that are subsequently
              * added.
              */
-            this.simulator.setAgentDefaults(15.0f, 10, 5.0f, 5.0f, 2.0f, 2.0f, new float2(0.0f, 0.0f));
+            this.simulator.setAgentDefaults(15f, 10, 5f, 5f, 2f, 2f, new float2(0f, 0f));
 
             /*
              * Add agents, specifying their start position.
              */
-            for (int i = 0; i < 5; ++i)
+            for (var i = 0; i < 5; ++i)
             {
-                for (int j = 0; j < 5; ++j)
+                for (var j = 0; j < 5; ++j)
                 {
-                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), 55.0f + (j * 10.0f)));
+                    this.simulator.addAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
 
-                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), 55.0f + (j * 10.0f)));
+                    this.simulator.addAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
 
-                    this.simulator.addAgent(new float2(55.0f + (i * 10.0f), -55.0f - (j * 10.0f)));
+                    this.simulator.addAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
 
-                    this.simulator.addAgent(new float2(-55.0f - (i * 10.0f), -55.0f - (j * 10.0f)));
+                    this.simulator.addAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
                 }
             }
 
@@ -57,37 +64,37 @@ namespace RVO
              */
             IList<float2> obstacle1 = new List<float2>
             {
-                new float2(-10.0f, 40.0f),
-                new float2(-40.0f, 40.0f),
-                new float2(-40.0f, 10.0f),
-                new float2(-10.0f, 10.0f),
+                new float2(-10f, 40f),
+                new float2(-40f, 40f),
+                new float2(-40f, 10f),
+                new float2(-10f, 10f),
             };
             this.simulator.addObstacle(obstacle1);
 
             IList<float2> obstacle2 = new List<float2>
             {
-                new float2(10.0f, 40.0f),
-                new float2(10.0f, 10.0f),
-                new float2(40.0f, 10.0f),
-                new float2(40.0f, 40.0f),
+                new float2(10f, 40f),
+                new float2(10f, 10f),
+                new float2(40f, 10f),
+                new float2(40f, 40f),
             };
             this.simulator.addObstacle(obstacle2);
 
             IList<float2> obstacle3 = new List<float2>
             {
-                new float2(10.0f, -40.0f),
-                new float2(40.0f, -40.0f),
-                new float2(40.0f, -10.0f),
-                new float2(10.0f, -10.0f),
+                new float2(10f, -40f),
+                new float2(40f, -40f),
+                new float2(40f, -10f),
+                new float2(10f, -10f),
             };
             this.simulator.addObstacle(obstacle3);
 
             IList<float2> obstacle4 = new List<float2>
             {
-                new float2(-10.0f, -40.0f),
-                new float2(-10.0f, -10.0f),
-                new float2(-40.0f, -10.0f),
-                new float2(-40.0f, -40.0f),
+                new float2(-10f, -40f),
+                new float2(-10f, -10f),
+                new float2(-40f, -10f),
+                new float2(-40f, -40f),
             };
             this.simulator.addObstacle(obstacle4);
 
@@ -107,16 +114,13 @@ namespace RVO
 
             this.simulator.CompleteImmediate();
 
-            for (int i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
+            for (var i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
             {
-                float2 o = this.simulator.getObstacleVertex(i);
-                //Gizmos.DrawSphere((Vector2)o, 1);
-
-                int last = i;
+                var last = i;
 
                 while (true)
                 {
-                    int next = this.simulator.getNextObstacleVertexNo(last);
+                    var next = this.simulator.getNextObstacleVertexNo(last);
 
                     float2 p0 = this.simulator.getObstacleVertex(last);
                     float2 p1 = this.simulator.getObstacleVertex(next);
@@ -134,10 +138,10 @@ namespace RVO
                 i = last;
             }
 
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 position = this.simulator.getAgentPosition(i);
-                Gizmos.DrawSphere((Vector2)position, 1);
+                Gizmos.DrawSphere((Vector2)position, 2);
             }
         }
 
@@ -147,11 +151,11 @@ namespace RVO
              * Set the preferred velocity to be a vector of unit magnitude
              * (speed) in the direction of the goal.
              */
-            for (int i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
             {
                 float2 goalVector = newGoal - this.simulator.getAgentPosition(i);
 
-                if (math.lengthsq(goalVector) > 1.0f)
+                if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
@@ -159,8 +163,8 @@ namespace RVO
                 this.simulator.setAgentPrefVelocity(i, goalVector);
 
                 /* Perturb a little to avoid deadlocks due to perfect symmetry. */
-                float angle = (float)this.random.NextDouble() * 2.0f * (float)Math.PI;
-                float dist = (float)this.random.NextDouble() * 0.0001f;
+                var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
+                var dist = (float)this.random.NextDouble() * 0.0001f;
 
                 this.simulator.setAgentPrefVelocity(
                     i,
@@ -180,7 +184,7 @@ namespace RVO
 
         private void Update()
         {
-            if (!GetTouchPosition(out bool isTouchBegan, out Vector3 position))
+            if (!this.GetTouchPosition(out var isTouchBegan, out Vector3 position))
             {
                 return;
             }
@@ -194,7 +198,7 @@ namespace RVO
             Vector3 worldPos = mainCam.ScreenToWorldPoint(position);
             float2 worldPos2d = (Vector2)worldPos;
 
-            switch (touchMode)
+            switch (this.GetTouchMode())
             {
                 case TouchMode.Add:
                     if (isTouchBegan)
@@ -213,6 +217,12 @@ namespace RVO
                 case TouchMode.Remove:
                     if (isTouchBegan)
                     {
+                        var agents = new List<int>();
+                        this.simulator.queryAgent(worldPos2d, 2f, agents);
+                        if (agents.Count > 0)
+                        {
+                            this.simulator.RemoveAgent(agents[0]);
+                        }
                     }
 
                     break;
@@ -226,43 +236,29 @@ namespace RVO
             this.simulator.Dispose();
         }
 
-        private enum TouchMode
-        {
-            Add = 0,
-            Move = 1,
-            Remove = 2,
-            Max = 3,
-        }
-
-        private TouchMode touchMode = TouchMode.Move;
-
         private void OnGUI()
         {
             GUILayout.Label($"Agents:{this.simulator.getNumAgents()}");
             GUILayout.Label($"FPS:{1f / Time.deltaTime}");
 
-            string modeText = string.Empty;
-            switch (touchMode)
+            GUILayout.Label($"- Press mouse and hold to move;");
+            GUILayout.Label($"- Press A and click to add;");
+            GUILayout.Label($"- Press R and click to remove.");
+        }
+
+        private TouchMode GetTouchMode()
+        {
+            if (Input.GetKey(KeyCode.A))
             {
-                case TouchMode.Add:
-                    modeText = "Click to create a new agent";
-                    break;
-                case TouchMode.Move:
-                    modeText = "Press and hold to update agents";
-                    break;
-                case TouchMode.Remove:
-                    modeText = "Click to remove an agent";
-                    break;
+                return TouchMode.Add;
             }
 
-            if (GUILayout.Button(modeText))
+            if (Input.GetKey(KeyCode.R))
             {
-                touchMode = touchMode + 1;
-                if (touchMode == TouchMode.Max)
-                {
-                    touchMode = TouchMode.Add;
-                }
+                return TouchMode.Remove;
             }
+
+            return TouchMode.Move;
         }
 
         private bool GetTouchPosition(out bool touchBegan, out Vector3 position)

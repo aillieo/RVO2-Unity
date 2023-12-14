@@ -91,14 +91,14 @@ namespace RVO
         [BurstCompile]
         internal static float distSqPointLineSegment(float2 vector1, float2 vector2, float2 vector3)
         {
-            float r = math.dot(vector3 - vector1, vector2 - vector1) / math.lengthsq(vector2 - vector1);
+            var r = math.dot(vector3 - vector1, vector2 - vector1) / math.lengthsq(vector2 - vector1);
 
-            if (r < 0.0f)
+            if (r < 0f)
             {
                 return math.lengthsq(vector3 - vector1);
             }
 
-            if (r > 1.0f)
+            if (r > 1f)
             {
                 return math.lengthsq(vector3 - vector2);
             }
@@ -132,7 +132,7 @@ namespace RVO
          * <param name="scalar">The float to be squared.</param>
          */
         [BurstCompile]
-        internal static float sqr(float scalar)
+        internal static float square(float scalar)
         {
             return scalar * scalar;
         }
