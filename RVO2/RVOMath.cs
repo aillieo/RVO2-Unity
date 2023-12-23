@@ -45,51 +45,39 @@ namespace RVO
     using Unity.Burst;
     using Unity.Mathematics;
 
-    /**
-     * <summary>Contains functions and constants used in multiple classes.
-     * </summary>
-     */
+    /// <summary>
+    /// Contains functions and constants used in multiple classes.
+    /// </summary>
     internal static class RVOMath
     {
-        /**
-         * <summary>A sufficiently small positive number.</summary>
-         */
+        /// <summary>
+        /// A sufficiently small positive number.
+        /// </summary>
         internal const float RVO_EPSILON = 0.00001f;
 
-        /**
-         * <summary>Computes the determinant of a two-dimensional square matrix
-         * with rows consisting of the specified two-dimensional vectors.
-         * </summary>
-         *
-         * <returns>The determinant of the two-dimensional square matrix.
-         * </returns>
-         *
-         * <param name="vector1">The top row of the two-dimensional square
-         * matrix.</param>
-         * <param name="vector2">The bottom row of the two-dimensional square
-         * matrix.</param>
-         */
+        /// <summary>
+        /// Computes the determinant of a two-dimensional square matrix
+        /// with rows consisting of the specified two-dimensional vectors.
+        /// </summary>
+        /// <param name="vector1">The top row of the two-dimensional square matrix.</param>
+        /// <param name="vector2">The bottom row of the two-dimensional square matrix.</param>
+        /// <returns>The determinant of the two-dimensional square matrix.</returns>
         [BurstCompile]
-        internal static float det(float2 vector1, float2 vector2)
+        internal static float Det(float2 vector1, float2 vector2)
         {
             return (vector1.x * vector2.y) - (vector1.y * vector2.x);
         }
 
-        /**
-         * <summary>Computes the squared distance from a line segment with the
-         * specified endpoints to a specified point.</summary>
-         *
-         * <returns>The squared distance from the line segment to the point.
-         * </returns>
-         *
-         * <param name="vector1">The first endpoint of the line segment.</param>
-         * <param name="vector2">The second endpoint of the line segment.
-         * </param>
-         * <param name="vector3">The point to which the squared distance is to
-         * be calculated.</param>
-         */
+        /// <summary>
+        /// Computes the squared distance from a line segment with the
+        /// specified endpoints to a specified point.
+        /// </summary>
+        /// <param name="vector1">The first endpoint of the line segment.</param>
+        /// <param name="vector2">The second endpoint of the line segment.</param>
+        /// <param name="vector3">The point to which the squared distance is to be calculated.</param>
+        /// <returns>The squared distance from the line segment to the point.</returns>
         [BurstCompile]
-        internal static float distSqPointLineSegment(float2 vector1, float2 vector2, float2 vector3)
+        internal static float DistSqPointLineSegment(float2 vector1, float2 vector2, float2 vector3)
         {
             var r = math.dot(vector3 - vector1, vector2 - vector1) / math.lengthsq(vector2 - vector1);
 
@@ -106,100 +94,85 @@ namespace RVO
             return math.lengthsq(vector3 - (vector1 + (r * (vector2 - vector1))));
         }
 
-        /**
-         * <summary>Computes the signed distance from a line connecting the
-         * specified points to a specified point.</summary>
-         *
-         * <returns>Positive when the point c lies to the left of the line ab.
-         * </returns>
-         *
-         * <param name="a">The first point on the line.</param>
-         * <param name="b">The second point on the line.</param>
-         * <param name="c">The point to which the signed distance is to be
-         * calculated.</param>
-         */
+        /// <summary>
+        /// Computes the signed distance from a line connecting
+        /// the specified points to a specified point.
+        /// </summary>
+        /// <param name="a">The first point on the line.</param>
+        /// <param name="b">The second point on the line.</param>
+        /// <param name="c">The point to which the signed distance is to be calculated.</param>
+        /// <returns>Positive when the point c lies to the left of the line ab.</returns>
         [BurstCompile]
-        internal static float leftOf(float2 a, float2 b, float2 c)
+        internal static float LeftOf(float2 a, float2 b, float2 c)
         {
-            return det(a - c, b - a);
+            return Det(a - c, b - a);
         }
 
-        /**
-         * <summary>Computes the square of a float.</summary>
-         *
-         * <returns>The square of the float.</returns>
-         *
-         * <param name="scalar">The float to be squared.</param>
-         */
+        /// <summary>
+        /// Computes the square of a float.
+        /// </summary>
+        /// <param name="scalar">The float to be squared.</param>
+        /// <returns>The square of the float.</returns>
         [BurstCompile]
-        internal static float square(float scalar)
+        internal static float Square(float scalar)
         {
             return scalar * scalar;
         }
 
-        /**
-         * <summary>Returns true if the first pair of scalar values is less
-         * than the second pair of scalar values.</summary>
-         *
-         * <returns>True if the first pair of scalar values is less than the
-         * second pair of scalar values.</returns>
-         *
-         * <param name="a">The first pair of scalar values.</param>
-         * <param name="b">The second pair of scalar values.</param>
-         */
+        /// <summary>
+        /// Returns true if the first pair of scalar values is less
+        /// than the second pair of scalar values.
+        /// </summary>
+        /// <param name="a">The first pair of scalar values.</param>
+        /// <param name="b">The second pair of scalar values.</param>
+        /// <returns>True if the first pair of scalar values is less
+        /// than the second pair of scalar values.</returns>
         [BurstCompile]
-        internal static bool less(float2 a, float2 b)
+        internal static bool Less(float2 a, float2 b)
         {
             return a.x < b.x || (!(b.x < a.x) && a.y < b.y);
         }
 
-        /**
-         * <summary>Returns true if the first pair of scalar values is less
-         * than or equal to the second pair of scalar values.</summary>
-         *
-         * <returns>True if the first pair of scalar values is less than or
-         * equal to the second pair of scalar values.</returns>
-         *
-         * <param name="a">The first pair of scalar values.</param>
-         * <param name="b">The second pair of scalar values.</param>
-         */
+        /// <summary>
+        /// Returns true if the first pair of scalar values is less
+        /// than or equal to the second pair of scalar values.
+        /// </summary>
+        /// <param name="a">The first pair of scalar values.</param>
+        /// <param name="b">The second pair of scalar values.</param>
+        /// <returns>True if the first pair of scalar values is less
+        /// than or equal to the second pair of scalar values.</returns>
         [BurstCompile]
-        internal static bool lessequal(float2 a, float2 b)
+        internal static bool LessEqual(float2 a, float2 b)
         {
-            return (a.x == b.x && a.y == b.y) || less(a, b);
+            return (a.x == b.x && a.y == b.y) || Less(a, b);
         }
 
-        /**
-         * <summary>Returns true if the first pair of scalar values is
-         * greater than the second pair of scalar values.</summary>
-         *
-         * <returns>True if the first pair of scalar values is greater than
-         * the second pair of scalar values.</returns>
-         *
-         * <param name="a">The first pair of scalar values.</param>
-         * <param name="b">The second pair of scalar values.</param>
-         */
+        /// <summary>
+        /// Returns true if the first pair of scalar values is greater
+        /// than the second pair of scalar values.
+        /// </summary>
+        /// <param name="a">The first pair of scalar values.</param>
+        /// <param name="b">The second pair of scalar values.</param>
+        /// <returns>True if the first pair of scalar values is greater
+        /// than the second pair of scalar values.</returns>
         [BurstCompile]
-        internal static bool greater(float2 a, float2 b)
+        internal static bool Greater(float2 a, float2 b)
         {
-            return !lessequal(a, b);
+            return !LessEqual(a, b);
         }
 
-        /**
-         * <summary>Returns true if the first pair of scalar values is
-         * greater than or equal to the second pair of scalar values.
-         * </summary>
-         *
-         * <returns>True if the first pair of scalar values is greater than
-         * or equal to the second pair of scalar values.</returns>
-         *
-         * <param name="a">The first pair of scalar values.</param>
-         * <param name="b">The second pair of scalar values.</param>
-         */
+        /// <summary>
+        /// Returns true if the first pair of scalar values is greater
+        /// than or equal to the second pair of scalar values.
+        /// </summary>
+        /// <param name="a">The first pair of scalar values.</param>
+        /// <param name="b">The second pair of scalar values.</param>
+        /// <returns>True if the first pair of scalar values is greater
+        /// than or equal to the second pair of scalar values.</returns>
         [BurstCompile]
-        internal static bool greaterequal(float2 a, float2 b)
+        internal static bool GreaterEqual(float2 a, float2 b)
         {
-            return !less(a, b);
+            return !Less(a, b);
         }
     }
 }

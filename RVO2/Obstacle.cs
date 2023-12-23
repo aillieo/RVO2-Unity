@@ -44,9 +44,9 @@ namespace RVO
 {
     using Unity.Mathematics;
 
-    /**
-     * <summary>Defines static obstacles in the simulation.</summary>
-     */
+    /// <summary>
+    /// Defines static obstacles in the simulation.
+    /// </summary>
     internal struct Obstacle
     {
         internal readonly int id;

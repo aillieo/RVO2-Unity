@@ -8,6 +8,9 @@ namespace RVO
 {
     using Unity.Jobs;
 
+    /// <summary>
+    /// Extension methods for <see cref="JobHandle"/>.
+    /// </summary>
     public static class JobHandleExtensions
     {
         /// <summary>

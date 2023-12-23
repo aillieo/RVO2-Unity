@@ -51,9 +51,9 @@ namespace RVO
     using Unity.Mathematics;
     using UnityEngine;
 
-    /**
-     * <summary>Defines the simulation.</summary>
-     */
+    /// <summary>
+    /// Defines the simulation.
+    /// </summary>
     public class Simulator : IDisposable
     {
         internal NativeList<Agent> agents;
@@ -86,24 +86,24 @@ namespace RVO
             this.Clear();
         }
 
+        /// <summary>
+        /// Finalizes an instance of the <see cref="Simulator"/> class.
+        /// </summary>
         ~Simulator()
         {
             this.Dispose(disposing: false);
         }
 
-        /**
-         * <summary>Adds a new agent with default properties to the simulation.
-         * </summary>
-         *
-         * <returns>The number of the agent, or -1 when the agent defaults have
-         * not been set.</returns>
-         *
-         * <param name="position">The two-dimensional starting position of this
-         * agent.</param>
-         */
-        public int addAgent(float2 position)
+        /// <summary>
+        /// Adds a new agent with default properties to the simulation.
+        /// </summary>
+        /// <param name="position">The two-dimensional starting position
+        /// of this agent.</param>
+        /// <returns>The number of the agent, or -1 when the agent defaults
+        /// have not been set.</returns>
+        public int AddAgent(float2 position)
         {
-            return this.addAgent(
+            return this.AddAgent(
                 position,
                 this.defaultAgent.neighborDist,
                 this.defaultAgent.maxNeighbors,
@@ -114,41 +114,39 @@ namespace RVO
                 this.defaultAgent.velocity);
         }
 
-        /**
-         * <summary>Adds a new agent to the simulation.</summary>
-         *
-         * <returns>The number of the agent.</returns>
-         *
-         * <param name="position">The two-dimensional starting position of this
-         * agent.</param>
-         * <param name="neighborDist">The maximum distance (center point to
-         * center point) to other agents this agent takes into account in the
-         * navigation. The larger this number, the longer the running time of
-         * the simulation. If the number is too low, the simulation will not be
-         * safe. Must be non-negative.</param>
-         * <param name="maxNeighbors">The maximum number of other agents this
-         * agent takes into account in the navigation. The larger this number,
-         * the longer the running time of the simulation. If the number is too
-         * low, the simulation will not be safe.</param>
-         * <param name="timeHorizon">The minimal amount of time for which this
-         * agent's velocities that are computed by the simulation are safe with
-         * respect to other agents. The larger this number, the sooner this
-         * agent will respond to the presence of other agents, but the less
-         * freedom this agent has in choosing its velocities. Must be positive.
-         * </param>
-         * <param name="timeHorizonObst">The minimal amount of time for which
-         * this agent's velocities that are computed by the simulation are safe
-         * with respect to obstacles. The larger this number, the sooner this
-         * agent will respond to the presence of obstacles, but the less freedom
-         * this agent has in choosing its velocities. Must be positive.</param>
-         * <param name="radius">The radius of this agent. Must be non-negative.
-         * </param>
-         * <param name="maxSpeed">The maximum speed of this agent. Must be
-         * non-negative.</param>
-         * <param name="velocity">The initial two-dimensional linear velocity of
-         * this agent.</param>
-         */
-        public int addAgent(float2 position, float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
+        /// <summary>
+        /// Adds a new agent to the simulation.
+        /// </summary>
+        /// <param name="position">The two-dimensional starting position of this
+        /// agent.</param>
+        /// <param name="neighborDist">The maximum distance (center point to
+        /// center point) to other agents this agent takes into account in the
+        /// navigation. The larger this number, the longer the running time of
+        /// the simulation. If the number is too low, the simulation will not be
+        /// safe. Must be non-negative.</param>
+        /// <param name="maxNeighbors">The maximum number of other agents this
+        /// agent takes into account in the navigation. The larger this number,
+        /// the longer the running time of the simulation. If the number is too
+        /// low, the simulation will not be safe.</param>
+        /// <param name="timeHorizon">The minimal amount of time for which this
+        /// agent's velocities that are computed by the simulation are safe with
+        /// respect to other agents. The larger this number, the sooner this
+        /// agent will respond to the presence of other agents, but the less
+        /// freedom this agent has in choosing its velocities. Must be positive.
+        /// </param>
+        /// <param name="timeHorizonObst">The minimal amount of time for which
+        /// this agent's velocities that are computed by the simulation are safe
+        /// with respect to obstacles. The larger this number, the sooner this
+        /// agent will respond to the presence of obstacles, but the less freedom
+        /// this agent has in choosing its velocities. Must be positive.</param>
+        /// <param name="radius">The radius of this agent. Must be non-negative.
+        /// </param>
+        /// <param name="maxSpeed">The maximum speed of this agent. Must be
+        /// non-negative.</param>
+        /// <param name="velocity">The initial two-dimensional linear velocity of
+        /// this agent.</param>
+        /// <returns>The number of the agent.</returns>
+        public int AddAgent(float2 position, float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
         {
             var agents = this.agents;
 
@@ -169,20 +167,17 @@ namespace RVO
             return agent.id;
         }
 
-        /**
-         * <summary>Adds a new obstacle to the simulation.</summary>
-         *
-         * <returns>The number of the first vertex of the obstacle, or -1 when
-         * the number of vertices is less than two.</returns>
-         *
-         * <param name="vertices">List of the vertices of the polygonal obstacle
-         * in counterclockwise order.</param>
-         *
-         * <remarks>To add a "negative" obstacle, e.g. a bounding polygon around
-         * the environment, the vertices should be listed in clockwise order.
-         * </remarks>
-         */
-        public int addObstacle(IList<float2> vertices)
+        /// <summary>
+        /// Adds a new obstacle to the simulation.
+        /// </summary>
+        /// <param name="vertices">List of the vertices of the polygonal obstacle
+        /// in counterclockwise order.</param>
+        /// <returns>The number of the first vertex of the obstacle, or -1 when
+        /// the number of vertices is less than two.</returns>
+        /// <remarks>To add a "negative" obstacle, e.g. a bounding polygon around
+        /// the environment, the vertices should be listed in clockwise order.
+        /// </remarks>
+        public int AddObstacle(IList<float2> vertices)
         {
             if (vertices.Count < 2)
             {
@@ -225,7 +220,7 @@ namespace RVO
                 }
                 else
                 {
-                    obstacle.convex = RVOMath.leftOf(vertices[i == 0 ? vertices.Count - 1 : i - 1], vertices[i], vertices[i == vertices.Count - 1 ? 0 : i + 1]) >= 0f;
+                    obstacle.convex = RVOMath.LeftOf(vertices[i == 0 ? vertices.Count - 1 : i - 1], vertices[i], vertices[i == vertices.Count - 1 ? 0 : i + 1]) >= 0f;
                 }
 
                 obstacles[obstacleIndex] = obstacle;
@@ -249,7 +244,43 @@ namespace RVO
             this.agentNoLookup.Remove(agentNo);
             this.agentNoLookup[lastId] = index;
 
+            // Rebuild agent tree
+            this.EnsureCompleted();
+            EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
+            var buildJob = new BuildJob(this.kdTree, this.agents.AsParallelReader());
+            var jobHandle = buildJob.Schedule();
+            this.jobHandle = jobHandle;
+
             return true;
+        }
+
+        public int RemoveAgents(IList<int> agentNos)
+        {
+            var removed = 0;
+            foreach (var agentNo in agentNos)
+            {
+                if (!this.agentNoLookup.TryGetValue(agentNo, out var index))
+                {
+                    continue;
+                }
+
+                removed++;
+
+                var lastIndex = this.agents.Length - 1;
+                var lastId = this.agents[lastIndex].id;
+                this.agents.RemoveAtSwapBack(index);
+                this.agentNoLookup.Remove(agentNo);
+                this.agentNoLookup[lastId] = index;
+            }
+
+            // Rebuild agent tree
+            this.EnsureCompleted();
+            EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
+            var buildJob = new BuildJob(this.kdTree, this.agents.AsParallelReader());
+            var jobHandle = buildJob.Schedule();
+            this.jobHandle = jobHandle;
+
+            return removed;
         }
 
         public bool RemoveObstacle(int obstacle)
@@ -257,17 +288,17 @@ namespace RVO
             throw new NotImplementedException();
         }
 
-        public void CompleteImmediate()
+        public void EnsureCompleted()
         {
             this.jobHandle.CheckAndComplete();
         }
 
-        /**
-         * <summary>Clears the simulation.</summary>
-         */
+        /// <summary>
+        /// Clears the simulation.
+        /// </summary>
         public void Clear()
         {
-            this.CompleteImmediate();
+            this.EnsureCompleted();
 
             var agents = this.agents;
 
@@ -296,18 +327,16 @@ namespace RVO
             this.SetNumWorkers(0);
         }
 
-        /**
-         * <summary>Performs a simulation step and updates the two-dimensional
-         * position and two-dimensional velocity of each agent.</summary>
-         *
-         * <returns>The global time after the simulation step.</returns>
-         */
-        public JobHandle doStep()
+        /// <summary>
+        /// Performs a simulation step and updates the two-dimensional
+        /// position and two-dimensional velocity of each agent.
+        /// </summary>
+        public void DoStep()
         {
             var arrayLength = this.agents.Length;
 
             KdTree kdTree = this.kdTree;
-            ensureTreeCapacity(ref kdTree, arrayLength);
+            EnsureTreeCapacity(ref kdTree, arrayLength);
             this.kdTree = kdTree;
 
             // job0
@@ -335,381 +364,318 @@ namespace RVO
             globalTime.Dispose(jobHandle3);
 
             this.jobHandle = jobHandle3;
-            return this.jobHandle;
         }
 
-        /**
-         * <summary>Returns the specified agent neighbor of the specified agent.
-         * </summary>
-         *
-         * <returns>The number of the neighboring agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose agent neighbor is
-         * to be retrieved.</param>
-         * <param name="neighborNo">The number of the agent neighbor to be
-         * retrieved.</param>
-         */
-        public int getAgentAgentNeighbor(int agentNo, int neighborNo)
+        /// <summary>
+        /// Returns the specified agent neighbor of the specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose agent neighbor
+        /// is to be retrieved.</param>
+        /// <param name="neighborNo">The number of the agent neighbor to be retrieved.</param>
+        /// <returns>The number of the neighboring agent.</returns>
+        public int GetAgentAgentNeighbor(int agentNo, int neighborNo)
         {
             throw new NotImplementedException();
         }
 
-        /**
-         * <summary>Returns the maximum neighbor count of a specified agent.
-         * </summary>
-         *
-         * <returns>The present maximum neighbor count of the agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose maximum neighbor
-         * count is to be retrieved.</param>
-         */
-        public int getAgentMaxNeighbors(int agentNo)
+        /// <summary>
+        /// Returns the maximum neighbor count of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum neighbor
+        /// count is to be retrieved.</param>
+        /// <returns>The present maximum neighbor count of the agent.</returns>
+        public int GetAgentMaxNeighbors(int agentNo)
         {
             return this.agents[agentNo].maxNeighbors;
         }
 
-        /**
-         * <summary>Returns the maximum speed of a specified agent.</summary>
-         *
-         * <returns>The present maximum speed of the agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose maximum speed is
-         * to be retrieved.</param>
-         */
-        public float getAgentMaxSpeed(int agentNo)
+        /// <summary>
+        /// Returns the maximum speed of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum speed
+        /// is to be retrieved.</param>
+        /// <returns>The present maximum speed of the agent.</returns>
+        public float GetAgentMaxSpeed(int agentNo)
         {
             return this.agents[agentNo].maxSpeed;
         }
 
-        /**
-         * <summary>Returns the maximum neighbor distance of a specified agent.
-         * </summary>
-         *
-         * <returns>The present maximum neighbor distance of the agent.
-         * </returns>
-         *
-         * <param name="agentNo">The number of the agent whose maximum neighbor
-         * distance is to be retrieved.</param>
-         */
-        public float getAgentNeighborDist(int agentNo)
+        /// <summary>
+        /// Returns the maximum neighbor distance of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum neighbor
+        /// distance is to be retrieved.</param>
+        /// <returns>The present maximum neighbor distance of the agent.</returns>
+        public float GetAgentNeighborDist(int agentNo)
         {
             return this.agents[agentNo].neighborDist;
         }
 
-        /**
-         * <summary>Returns the count of agent neighbors taken into account to
-         * compute the current velocity for the specified agent.</summary>
-         *
-         * <returns>The count of agent neighbors taken into account to compute
-         * the current velocity for the specified agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose count of agent
-         * neighbors is to be retrieved.</param>
-         */
-        public int getAgentNumAgentNeighbors(int agentNo)
+        /// <summary>
+        /// Returns the count of agent neighbors taken into account to
+        /// compute the current velocity for the specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose count of agent
+        /// neighbors is to be retrieved.</param>
+        /// <returns>The count of agent neighbors taken into account to compute
+        /// the current velocity for the specified agent.</returns>
+        public int GetAgentNumAgentNeighbors(int agentNo)
         {
             throw new NotImplementedException();
         }
 
-        /**
-         * <summary>Returns the count of obstacle neighbors taken into account
-         * to compute the current velocity for the specified agent.</summary>
-         *
-         * <returns>The count of obstacle neighbors taken into account to
-         * compute the current velocity for the specified agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose count of obstacle
-         * neighbors is to be retrieved.</param>
-         */
-        public int getAgentNumObstacleNeighbors(int agentNo)
+        /// <summary>
+        /// Returns the count of obstacle neighbors taken into account
+        /// to compute the current velocity for the specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose count of obstacle
+        /// neighbors is to be retrieved.</param>
+        /// <returns>The count of obstacle neighbors taken into account to
+        /// compute the current velocity for the specified agent.</returns>
+        public int GetAgentNumObstacleNeighbors(int agentNo)
         {
             throw new NotImplementedException();
         }
 
-        /**
-         * <summary>Returns the specified obstacle neighbor of the specified
-         * agent.</summary>
-         *
-         * <returns>The number of the first vertex of the neighboring obstacle
-         * edge.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose obstacle neighbor
-         * is to be retrieved.</param>
-         * <param name="neighborNo">The number of the obstacle neighbor to be
-         * retrieved.</param>
-         */
-        public int getAgentObstacleNeighbor(int agentNo, int neighborNo)
+        /// <summary>
+        /// Returns the specified obstacle neighbor of the specified agent.
+        /// </summary>
+        /// <returns>The number of the first vertex of the neighboring
+        /// obstacle edge.</returns>
+        /// <param name="agentNo">The number of the agent whose obstacle neighbor
+        /// is to be retrieved.</param>
+        /// <param name="neighborNo">The number of the obstacle neighbor to be
+        /// retrieved.</param>
+        public int GetAgentObstacleNeighbor(int agentNo, int neighborNo)
         {
             throw new NotImplementedException();
         }
 
-        /**
-         * <summary>Returns the ORCA constraints of the specified agent.
-         * </summary>
-         *
-         * <returns>A list of lines representing the ORCA constraints.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose ORCA constraints
-         * are to be retrieved.</param>
-         *
-         * <remarks>The halfplane to the left of each line is the region of
-         * permissible velocities with respect to that ORCA constraint.
-         * </remarks>
-         */
-        public IEnumerable<Line> getAgentOrcaLines(int agentNo)
+        /// <summary>
+        /// Returns the ORCA constraints of the specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose ORCA constraints
+        /// are to be retrieved.</param>
+        /// <returns>A list of lines representing the ORCA constraints.</returns>
+        /// <remarks>The halfplane to the left of each line is the region of
+        /// permissible velocities with respect to that ORCA constraint.
+        /// </remarks>
+        public IEnumerable<Line> GetAgentOrcaLines(int agentNo)
         {
             throw new NotImplementedException();
         }
 
-        /**
-         * <summary>Returns the two-dimensional position of a specified agent.
-         * </summary>
-         *
-         * <returns>The present two-dimensional position of the (center of the)
-         * agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * position is to be retrieved.</param>
-         */
-        public float2 getAgentPosition(int agentNo)
+        /// <summary>
+        /// Returns the two-dimensional position of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// position is to be retrieved.</param>
+        /// <returns>The present two-dimensional position of the(center of the) agent.</returns>
+        public float2 GetAgentPosition(int agentNo)
         {
             return this.agents[agentNo].position;
         }
 
-        /**
-         * <summary>Returns the two-dimensional preferred velocity of a
-         * specified agent.</summary>
-         *
-         * <returns>The present two-dimensional preferred velocity of the agent.
-         * </returns>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * preferred velocity is to be retrieved.</param>
-         */
-        public float2 getAgentPrefVelocity(int agentNo)
+        /// <summary>
+        /// Returns the two-dimensional preferred velocity of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// preferred velocity is to be retrieved.</param>
+        /// <returns>The present two-dimensional preferred velocity of the agent.</returns>
+        public float2 GetAgentPrefVelocity(int agentNo)
         {
             return this.agents[agentNo].prefVelocity;
         }
 
-        /**
-         * <summary>Returns the radius of a specified agent.</summary>
-         *
-         * <returns>The present radius of the agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose radius is to be
-         * retrieved.</param>
-         */
-        public float getAgentRadius(int agentNo)
+        /// <summary>
+        /// Returns the radius of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose radius is to be
+        /// retrieved.</param>
+        /// <returns>The present radius of the agent.</returns>
+        public float GetAgentRadius(int agentNo)
         {
             return this.agents[agentNo].radius;
         }
 
-        /**
-         * <summary>Returns the time horizon of a specified agent.</summary>
-         *
-         * <returns>The present time horizon of the agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose time horizon is
-         * to be retrieved.</param>
-         */
-        public float getAgentTimeHorizon(int agentNo)
+        /// <summary>
+        /// Returns the time horizon of a specified agent.
+        /// </summary>
+        /// <returns>The present time horizon of the agent.</returns>
+        ///
+        /// <param name="agentNo">The number of the agent whose time horizon is
+        /// to be retrieved.</param>
+        public float GetAgentTimeHorizon(int agentNo)
         {
             return this.agents[agentNo].timeHorizon;
         }
 
-        /**
-         * <summary>Returns the time horizon with respect to obstacles of a
-         * specified agent.</summary>
-         *
-         * <returns>The present time horizon with respect to obstacles of the
-         * agent.</returns>
-         *
-         * <param name="agentNo">The number of the agent whose time horizon with
-         * respect to obstacles is to be retrieved.</param>
-         */
-        public float getAgentTimeHorizonObst(int agentNo)
+        /// <summary>
+        /// Returns the time horizon with respect to obstacles of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose time horizon with
+        /// respect to obstacles is to be retrieved.</param>
+        /// <returns>The present time horizon with respect to obstacles of the agent.</returns>
+        public float GetAgentTimeHorizonObst(int agentNo)
         {
             return this.agents[agentNo].timeHorizonObst;
         }
 
-        /**
-         * <summary>Returns the two-dimensional linear velocity of a specified
-         * agent.</summary>
-         *
-         * <returns>The present two-dimensional linear velocity of the agent.
-         * </returns>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * linear velocity is to be retrieved.</param>
-         */
-        public float2 getAgentVelocity(int agentNo)
+        /// <summary>
+        /// Returns the two-dimensional linear velocity of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// linear velocity is to be retrieved.</param>
+        /// <returns>The present two-dimensional linear velocity of the agent.</returns>
+        public float2 GetAgentVelocity(int agentNo)
         {
             return this.agents[agentNo].velocity;
         }
 
-        /**
-         * <summary>Returns the global time of the simulation.</summary>
-         *
-         * <returns>The present global time of the simulation (zero initially).
-         * </returns>
-         */
-        public float getGlobalTime()
+        /// <summary>
+        /// Returns the global time of the simulation.
+        /// </summary>
+        /// <returns>The present global time of the simulation (zero initially).
+        /// </returns>
+        public float GetGlobalTime()
         {
             return this.globalTime;
         }
 
-        /**
-         * <summary>Returns the count of agents in the simulation.</summary>
-         *
-         * <returns>The count of agents in the simulation.</returns>
-         */
-        public int getNumAgents()
+        /// <summary>
+        /// Returns the count of agents in the simulation.
+        /// </summary>
+        /// <returns>The count of agents in the simulation.</returns>
+        public int GetNumAgents()
         {
             return this.agents.Length;
         }
 
-        /**
-         * <summary>Returns the count of obstacle vertices in the simulation.
-         * </summary>
-         *
-         * <returns>The count of obstacle vertices in the simulation.</returns>
-         */
-        public int getNumObstacleVertices()
+        /// <summary>
+        /// Returns the count of obstacle vertices in the simulation.
+        /// </summary>
+        /// <returns>The count of obstacle vertices in the simulation.</returns>
+        public int GetNumObstacleVertices()
         {
             return this.obstacles.Length;
         }
 
-        /**
-         * <summary>Returns the count of workers.</summary>
-         *
-         * <returns>The count of workers.</returns>
-         */
+        /// <summary>
+        /// Returns the count of workers.
+        /// </summary>
+        /// <returns>The count of workers.</returns>
         public int GetNumWorkers()
         {
             return this.numWorkers;
         }
 
-        /**
-         * <summary>Returns the two-dimensional position of a specified obstacle
-         * vertex.</summary>
-         *
-         * <returns>The two-dimensional position of the specified obstacle
-         * vertex.</returns>
-         *
-         * <param name="vertexNo">The number of the obstacle vertex to be
-         * retrieved.</param>
-         */
-        public float2 getObstacleVertex(int vertexNo)
+        /// <summary>
+        /// Returns the two-dimensional position of a specified obstacle vertex.
+        /// </summary>
+        /// <param name="vertexNo">The number of the obstacle vertex to be retrieved.</param>
+        /// <returns>The two-dimensional position of the specified obstacle vertex.</returns>
+        public float2 GetObstacleVertex(int vertexNo)
         {
             return this.obstacles[vertexNo].point;
         }
 
-        /**
-         * <summary>Returns the number of the obstacle vertex succeeding the
-         * specified obstacle vertex in its polygon.</summary>
-         *
-         * <returns>The number of the obstacle vertex succeeding the specified
-         * obstacle vertex in its polygon.</returns>
-         *
-         * <param name="vertexNo">The number of the obstacle vertex whose
-         * successor is to be retrieved.</param>
-         */
-        public int getNextObstacleVertexNo(int vertexNo)
+        /// <summary>
+        /// Returns the number of the obstacle vertex succeeding the specified
+        /// obstacle vertex in its polygon.
+        /// </summary>
+        /// <param name="vertexNo">The number of the obstacle vertex whose successor
+        /// is to be retrieved.</param>
+        /// <returns>The number of the obstacle vertex succeeding the specified
+        /// obstacle vertex in its polygon.</returns>
+        public int GetNextObstacleVertexNo(int vertexNo)
         {
             return this.obstacles[vertexNo].nextIndex;
         }
 
-        /**
-         * <summary>Returns the number of the obstacle vertex preceding the
-         * specified obstacle vertex in its polygon.</summary>
-         *
-         * <returns>The number of the obstacle vertex preceding the specified
-         * obstacle vertex in its polygon.</returns>
-         *
-         * <param name="vertexNo">The number of the obstacle vertex whose
-         * predecessor is to be retrieved.</param>
-         */
-        public int getPrevObstacleVertexNo(int vertexNo)
+        /// <summary>
+        /// Returns the number of the obstacle vertex preceding the specified
+        /// obstacle vertex in its polygon.
+        /// </summary>
+        /// <param name="vertexNo">The number of the obstacle vertex whose
+        /// predecessor is to be retrieved.</param>
+        /// <returns>The number of the obstacle vertex preceding the specified
+        /// obstacle vertex in its polygon.</returns>
+        public int GetPrevObstacleVertexNo(int vertexNo)
         {
             return this.obstacles[vertexNo].previousIndex;
         }
 
-        /**
-         * <summary>Returns the time step of the simulation.</summary>
-         *
-         * <returns>The present time step of the simulation.</returns>
-         */
-        public float getTimeStep()
+        /// <summary>
+        /// Returns the time step of the simulation.
+        /// </summary>
+        ///
+        /// <returns>The present time step of the simulation.</returns>
+        public float GetTimeStep()
         {
             return this.timeStep;
         }
 
-        /**
-         * <summary>Processes the obstacles that have been added so that they
-         * are accounted for in the simulation.</summary>
-         *
-         * <remarks>Obstacles added to the simulation after this function has
-         * been called are not accounted for in the simulation.</remarks>
-         */
-        public void processObstacles()
+        /// <summary>
+        /// Processes the obstacles that have been added so that they are
+        /// accounted for in the simulation.
+        /// </summary>
+        /// <remarks>Obstacles added to the simulation after this function has
+        /// been called are not accounted for in the simulation.</remarks>
+        public void ProcessObstacles()
         {
-            this.buildObstacleTree();
+            this.BuildObstacleTree();
         }
 
-        /**
-         * <summary>Performs a visibility query between the two specified points
-         * with respect to the obstacles.</summary>
-         *
-         * <returns>A boolean specifying whether the two points are mutually
-         * visible. Returns true when the obstacles have not been processed.
-         * </returns>
-         *
-         * <param name="point1">The first point of the query.</param>
-         * <param name="point2">The second point of the query.</param>
-         * <param name="radius">The minimal distance between the line connecting
-         * the two points and the obstacles in order for the points to be
-         * mutually visible (optional). Must be non-negative.</param>
-         */
-        public bool queryVisibility(float2 point1, float2 point2, float radius)
+        /// <summary>
+        /// Performs a visibility query between the two specified points
+        /// with respect to the obstacles.
+        /// </summary>
+        /// <param name="point1">The first point of the query.</param>
+        /// <param name="point2">The second point of the query.</param>
+        /// <param name="radius">The minimal distance between the line connecting
+        /// the two points and the obstacles in order for the points to be
+        /// mutually visible (optional). Must be non-negative.</param>
+        /// <returns>A boolean specifying whether the two points are mutually
+        /// visible. Returns true when the obstacles have not been processed.
+        /// </returns>
+        public bool QueryVisibility(float2 point1, float2 point2, float radius)
         {
             var kdTree = this.kdTree;
             var obstacles = this.obstacles;
-            return kdTree.AsParallelReader().queryVisibility(point1, point2, radius, obstacles);
+            return kdTree.AsParallelReader().QueryVisibility(point1, point2, radius, obstacles);
         }
 
-        /**
-         * <summary>Sets the default properties for any new agent that is added.
-         * </summary>
-         *
-         * <param name="neighborDist">The default maximum distance (center point
-         * to center point) to other agents a new agent takes into account in
-         * the navigation. The larger this number, the longer he running time of
-         * the simulation. If the number is too low, the simulation will not be
-         * safe. Must be non-negative.</param>
-         * <param name="maxNeighbors">The default maximum number of other agents
-         * a new agent takes into account in the navigation. The larger this
-         * number, the longer the running time of the simulation. If the number
-         * is too low, the simulation will not be safe.</param>
-         * <param name="timeHorizon">The default minimal amount of time for
-         * which a new agent's velocities that are computed by the simulation
-         * are safe with respect to other agents. The larger this number, the
-         * sooner an agent will respond to the presence of other agents, but the
-         * less freedom the agent has in choosing its velocities. Must be
-         * positive.</param>
-         * <param name="timeHorizonObst">The default minimal amount of time for
-         * which a new agent's velocities that are computed by the simulation
-         * are safe with respect to obstacles. The larger this number, the
-         * sooner an agent will respond to the presence of obstacles, but the
-         * less freedom the agent has in choosing its velocities. Must be
-         * positive.</param>
-         * <param name="radius">The default radius of a new agent. Must be
-         * non-negative.</param>
-         * <param name="maxSpeed">The default maximum speed of a new agent. Must
-         * be non-negative.</param>
-         * <param name="velocity">The default initial two-dimensional linear
-         * velocity of a new agent.</param>
-         */
-        public void setAgentDefaults(float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
+        /// <summary>
+        /// Sets the default properties for any new agent that is added.
+        /// </summary>
+        /// <param name="neighborDist">The default maximum distance (center point
+        /// to center point) to other agents a new agent takes into account in
+        /// the navigation. The larger this number, the longer he running time of
+        /// the simulation. If the number is too low, the simulation will not be
+        /// safe. Must be non-negative.</param>
+        /// <param name="maxNeighbors">The default maximum number of other agents
+        /// a new agent takes into account in the navigation. The larger this
+        /// number, the longer the running time of the simulation. If the number
+        /// is too low, the simulation will not be safe.</param>
+        /// <param name="timeHorizon">The default minimal amount of time for
+        /// which a new agent's velocities that are computed by the simulation
+        /// are safe with respect to other agents. The larger this number, the
+        /// sooner an agent will respond to the presence of other agents, but the
+        /// less freedom the agent has in choosing its velocities. Must be
+        /// positive.</param>
+        /// <param name="timeHorizonObst">The default minimal amount of time for
+        /// which a new agent's velocities that are computed by the simulation
+        /// are safe with respect to obstacles. The larger this number, the
+        /// sooner an agent will respond to the presence of obstacles, but the
+        /// less freedom the agent has in choosing its velocities. Must be
+        /// positive.</param>
+        /// <param name="radius">The default radius of a new agent. Must be
+        /// non-negative.</param>
+        /// <param name="maxSpeed">The default maximum speed of a new agent. Must
+        /// be non-negative.</param>
+        /// <param name="velocity">The default initial two-dimensional linear
+        /// velocity of a new agent.</param>
+        public void SetAgentDefaults(float neighborDist, int maxNeighbors, float timeHorizon, float timeHorizonObst, float radius, float maxSpeed, float2 velocity)
         {
             this.defaultAgent = new Agent
             {
@@ -723,16 +689,14 @@ namespace RVO
             };
         }
 
-        /**
-         * <summary>Sets the maximum neighbor count of a specified agent.
-         * </summary>
-         *
-         * <param name="agentNo">The number of the agent whose maximum neighbor
-         * count is to be modified.</param>
-         * <param name="maxNeighbors">The replacement maximum neighbor count.
-         * </param>
-         */
-        public void setAgentMaxNeighbors(int agentNo, int maxNeighbors)
+        /// <summary>
+        /// Sets the maximum neighbor count of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum neighbor
+        /// count is to be modified.</param>
+        /// <param name="maxNeighbors">The replacement maximum neighbor count.
+        /// </param>
+        public void SetAgentMaxNeighbors(int agentNo, int maxNeighbors)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -740,15 +704,14 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the maximum speed of a specified agent.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose maximum speed is
-         * to be modified.</param>
-         * <param name="maxSpeed">The replacement maximum speed. Must be
-         * non-negative.</param>
-         */
-        public void setAgentMaxSpeed(int agentNo, float maxSpeed)
+        /// <summary>
+        /// Sets the maximum speed of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum speed is
+        /// to be modified.</param>
+        /// <param name="maxSpeed">The replacement maximum speed. Must be
+        /// non-negative.</param>
+        public void SetAgentMaxSpeed(int agentNo, float maxSpeed)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -756,16 +719,14 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the maximum neighbor distance of a specified agent.
-         * </summary>
-         *
-         * <param name="agentNo">The number of the agent whose maximum neighbor
-         * distance is to be modified.</param>
-         * <param name="neighborDist">The replacement maximum neighbor distance.
-         * Must be non-negative.</param>
-         */
-        public void setAgentNeighborDist(int agentNo, float neighborDist)
+        /// <summary>
+        /// Sets the maximum neighbor distance of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose maximum neighbor
+        /// distance is to be modified.</param>
+        /// <param name="neighborDist">The replacement maximum neighbor distance.
+        /// Must be non-negative.</param>
+        public void SetAgentNeighborDist(int agentNo, float neighborDist)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -773,16 +734,14 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the two-dimensional position of a specified agent.
-         * </summary>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * position is to be modified.</param>
-         * <param name="position">The replacement of the two-dimensional
-         * position.</param>
-         */
-        public void setAgentPosition(int agentNo, float2 position)
+        /// <summary>
+        /// Sets the two-dimensional position of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// position is to be modified.</param>
+        /// <param name="position">The replacement of the two-dimensional
+        /// position.</param>
+        public void SetAgentPosition(int agentNo, float2 position)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -790,16 +749,14 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the two-dimensional preferred velocity of a specified
-         * agent.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * preferred velocity is to be modified.</param>
-         * <param name="prefVelocity">The replacement of the two-dimensional
-         * preferred velocity.</param>
-         */
-        public void setAgentPrefVelocity(int agentNo, float2 prefVelocity)
+        /// <summary>
+        /// Sets the two-dimensional preferred velocity of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// preferred velocity is to be modified.</param>
+        /// <param name="prefVelocity">The replacement of the two-dimensional
+        /// preferred velocity.</param>
+        public void SetAgentPrefVelocity(int agentNo, float2 prefVelocity)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -807,15 +764,12 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the radius of a specified agent.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose radius is to be
-         * modified.</param>
-         * <param name="radius">The replacement radius. Must be non-negative.
-         * </param>
-         */
-        public void setAgentRadius(int agentNo, float radius)
+        /// <summary>
+        /// Sets the radius of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose radius is to be modified.</param>
+        /// <param name="radius">The replacement radius. Must be non-negative.</param>
+        public void SetAgentRadius(int agentNo, float radius)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -823,16 +777,13 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the time horizon of a specified agent with respect to
-         * other agents.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose time horizon is
-         * to be modified.</param>
-         * <param name="timeHorizon">The replacement time horizon with respect
-         * to other agents. Must be positive.</param>
-         */
-        public void setAgentTimeHorizon(int agentNo, float timeHorizon)
+        /// <summary>
+        /// Sets the time horizon of a specified agent with respect to other agents.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose time horizon is to be modified.</param>
+        /// <param name="timeHorizon">The replacement time horizon with respect to
+        /// other agents. Must be positive.</param>
+        public void SetAgentTimeHorizon(int agentNo, float timeHorizon)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -840,16 +791,14 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the time horizon of a specified agent with respect to
-         * obstacles.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose time horizon with
-         * respect to obstacles is to be modified.</param>
-         * <param name="timeHorizonObst">The replacement time horizon with
-         * respect to obstacles. Must be positive.</param>
-         */
-        public void setAgentTimeHorizonObst(int agentNo, float timeHorizonObst)
+        /// <summary>
+        /// Sets the time horizon of a specified agent with respect to obstacles.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose time horizon with
+        /// respect to obstacles is to be modified.</param>
+        /// <param name="timeHorizonObst">The replacement time horizon with
+        /// respect to obstacles. Must be positive.</param>
+        public void SetAgentTimeHorizonObst(int agentNo, float timeHorizonObst)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -857,16 +806,13 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the two-dimensional linear velocity of a specified
-         * agent.</summary>
-         *
-         * <param name="agentNo">The number of the agent whose two-dimensional
-         * linear velocity is to be modified.</param>
-         * <param name="velocity">The replacement two-dimensional linear
-         * velocity.</param>
-         */
-        public void setAgentVelocity(int agentNo, float2 velocity)
+        /// <summary>
+        /// Sets the two-dimensional linear velocity of a specified agent.
+        /// </summary>
+        /// <param name="agentNo">The number of the agent whose two-dimensional
+        /// linear velocity is to be modified.</param>
+        /// <param name="velocity">The replacement two-dimensional linear velocity.</param>
+        public void SetAgentVelocity(int agentNo, float2 velocity)
         {
             var agents = this.agents;
             Agent agent = agents[agentNo];
@@ -874,21 +820,19 @@ namespace RVO
             agents[agentNo] = agent;
         }
 
-        /**
-         * <summary>Sets the global time of the simulation.</summary>
-         *
-         * <param name="globalTime">The global time of the simulation.</param>
-         */
-        public void setGlobalTime(float globalTime)
+        /// <summary>
+        /// Sets the global time of the simulation.
+        /// </summary>
+        /// <param name="globalTime">The global time of the simulation.</param>
+        public void SetGlobalTime(float globalTime)
         {
             this.globalTime = globalTime;
         }
 
-        /**
-         * <summary>Sets the number of workers.</summary>
-         *
-         * <param name="numWorkers">The number of workers.</param>
-         */
+        /// <summary>
+        /// Sets the number of workers.
+        /// </summary>
+        /// <param name="numWorkers">The number of workers.</param>
         public void SetNumWorkers(int numWorkers)
         {
             this.numWorkers = numWorkers;
@@ -899,31 +843,30 @@ namespace RVO
             }
         }
 
-        /**
-         * <summary>Sets the time step of the simulation.</summary>
-         *
-         * <param name="timeStep">The time step of the simulation. Must be
-         * positive.</param>
-         */
-        public void setTimeStep(float timeStep)
+        /// <summary>
+        /// Sets the time step of the simulation.
+        /// </summary>
+        /// <param name="timeStep">The time step of the simulation.
+        /// Must be positive.</param>
+        public void SetTimeStep(float timeStep)
         {
             this.timeStep = timeStep;
         }
 
-        public int queryAgent(float2 point, float radius, List<int> result)
+        public int QueryAgent(float2 point, float radius, List<int> result)
         {
             if (result == null)
             {
                 throw new ArgumentNullException(nameof(result));
             }
 
-            this.CompleteImmediate();
+            this.EnsureCompleted();
 
             var kdTree = this.kdTree;
             NativeArray<Agent> agents = this.agents;
 
             var buffer = new NativeList<Agent>(Allocator.Temp);
-            kdTree.AsParallelReader().queryAgentTree(in point, in radius, in agents, ref buffer);
+            kdTree.AsParallelReader().QueryAgentTree(in point, in radius, in agents, ref buffer);
 
             result.Clear();
             foreach (var a in buffer)
@@ -936,21 +879,20 @@ namespace RVO
             return result.Count;
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
             this.Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
 
-        /**
-         * <summary>Recursive method for building an agent k-D tree.</summary>
-         *
-         * <param name="begin">The beginning agent k-D tree node node index.
-         * </param>
-         * <param name="end">The ending agent k-D tree node index.</param>
-         * <param name="nodeIndex">The current agent k-D tree node index.</param>
-         */
-        internal static void buildAgentTreeRecursive(ref KdTree kdTree, int begin, int end, int nodeIndex, in NativeArray<Agent>.ReadOnly agents)
+        /// <summary>
+        /// Recursive method for building an agent k-D tree.
+        /// </summary>
+        /// <param name="begin">The beginning agent k-D tree node node index.</param>
+        /// <param name="end">The ending agent k-D tree node index.</param>
+        /// <param name="nodeIndex">The current agent k-D tree node index.</param>
+        internal static void BuildAgentTreeRecursive(ref KdTree kdTree, int begin, int end, int nodeIndex, in NativeArray<Agent>.ReadOnly agents)
         {
             KdTree.AgentTreeNode node = kdTree.agentTree[nodeIndex];
             node.begin = begin;
@@ -972,7 +914,7 @@ namespace RVO
 
             if (end - begin > KdTree.MaxLeafSize)
             {
-                /* No leaf node. */
+                // No leaf node.
                 var isVertical = kdTree.agentTree[nodeIndex].maxX - kdTree.agentTree[nodeIndex].minX > kdTree.agentTree[nodeIndex].maxY - kdTree.agentTree[nodeIndex].minY;
                 var splitValue = 0.5f * (isVertical ? kdTree.agentTree[nodeIndex].maxX + kdTree.agentTree[nodeIndex].minX : kdTree.agentTree[nodeIndex].maxY + kdTree.agentTree[nodeIndex].minY);
 
@@ -1029,12 +971,12 @@ namespace RVO
                 node.right = nodeIndex + (2 * leftSize);
                 kdTree.agentTree[nodeIndex] = node;
 
-                buildAgentTreeRecursive(ref kdTree, begin, left, kdTree.agentTree[nodeIndex].left, agents);
-                buildAgentTreeRecursive(ref kdTree, left, end, kdTree.agentTree[nodeIndex].right, agents);
+                BuildAgentTreeRecursive(ref kdTree, begin, left, kdTree.agentTree[nodeIndex].left, agents);
+                BuildAgentTreeRecursive(ref kdTree, left, end, kdTree.agentTree[nodeIndex].right, agents);
             }
         }
 
-        internal static void ensureTreeCapacity(ref KdTree kdTree, int agentCount)
+        internal static void EnsureTreeCapacity(ref KdTree kdTree, int agentCount)
         {
             if (kdTree.agents.Length != agentCount)
             {
@@ -1053,10 +995,12 @@ namespace RVO
             }
         }
 
-        /**
-         * <summary>Builds an agent k-D tree.</summary>
-         */
-        internal static void buildAgentTree(ref KdTree kdTree, in NativeArray<Agent>.ReadOnly agents)
+        /// <summary>
+        /// Builds an agent k-D tree.
+        /// </summary>
+        /// <param name="kdTree"></param>
+        /// <param name="agents"></param>
+        internal static void BuildAgentTree(ref KdTree kdTree, in NativeArray<Agent>.ReadOnly agents)
         {
             if (kdTree.agents.Length != 0)
             {
@@ -1065,7 +1009,7 @@ namespace RVO
                     kdTree.agents[i] = i;
                 }
 
-                buildAgentTreeRecursive(ref kdTree, 0, kdTree.agents.Length, 0, agents);
+                BuildAgentTreeRecursive(ref kdTree, 0, kdTree.agents.Length, 0, agents);
             }
         }
 
@@ -1082,10 +1026,10 @@ namespace RVO
             return newIndex;
         }
 
-        /**
-         * <summary>Builds an obstacle k-D tree.</summary>
-         */
-        internal void buildObstacleTree()
+        /// <summary>
+        /// Builds an obstacle k-D tree.
+        /// </summary>
+        internal void BuildObstacleTree()
         {
             var obstacles = this.obstacles;
 
@@ -1097,21 +1041,18 @@ namespace RVO
             }
 
             var kdTree = this.kdTree;
-            this.buildObstacleTreeRecursive(ref kdTree, in obstacleIds);
+            this.BuildObstacleTreeRecursive(ref kdTree, in obstacleIds);
             this.kdTree = kdTree;
 
             obstacleIds.Dispose();
         }
 
-        /**
-         * <summary>Recursive method for building an obstacle k-D tree.
-         * </summary>
-         *
-         * <returns>An obstacle k-D tree node.</returns>
-         *
-         * <param name="obstacles">A list of obstacles.</param>
-         */
-        internal int buildObstacleTreeRecursive(ref KdTree kdTree, in NativeArray<int> obstacleIds)
+        /// <summary>
+        /// Recursive method for building an obstacle k-D tree.
+        /// </summary>
+        /// <param name="obstacles">A list of obstacles.</param>
+        /// <returns>An obstacle k-D tree node.</returns>
+        internal int BuildObstacleTreeRecursive(ref KdTree kdTree, in NativeArray<int> obstacleIds)
         {
             if (obstacleIds.Length == 0)
             {
@@ -1138,7 +1079,7 @@ namespace RVO
                 var obstacleI2Index = obstacleI1.nextIndex;
                 Obstacle obstacleI2 = obstacles[obstacleI2Index];
 
-                /* Compute optimal split node. */
+                // Compute optimal split node.
                 for (var j = 0; j < obstacleIds.Length; ++j)
                 {
                     if (i == j)
@@ -1151,8 +1092,8 @@ namespace RVO
                     var obstacleJ2Index = obstacleJ1.nextIndex;
                     Obstacle obstacleJ2 = obstacles[obstacleJ2Index];
 
-                    var j1LeftOfI = RVOMath.leftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
-                    var j2LeftOfI = RVOMath.leftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
+                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
+                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
 
                     if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
                     {
@@ -1171,7 +1112,7 @@ namespace RVO
                     var bound1 = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
                     var bound2 = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
 
-                    if (RVOMath.greaterequal(bound1, bound2))
+                    if (RVOMath.GreaterEqual(bound1, bound2))
                     {
                         break;
                     }
@@ -1180,7 +1121,7 @@ namespace RVO
                 var bound1f = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
                 var bound2f = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
 
-                if (RVOMath.less(bound1f, bound2f))
+                if (RVOMath.Less(bound1f, bound2f))
                 {
                     minLeft = leftSize;
                     minRight = rightSize;
@@ -1189,7 +1130,7 @@ namespace RVO
             }
 
             {
-                /* Build split node. */
+                // Build split node.
                 var leftObstacles = new NativeArray<int>(minLeft, Allocator.Temp);
 
                 for (var n = 0; n < minLeft; ++n)
@@ -1225,8 +1166,8 @@ namespace RVO
                     var obstacleJ2Index = obstacleJ1.nextIndex;
                     Obstacle obstacleJ2 = obstacles[obstacleJ2Index];
 
-                    var j1LeftOfI = RVOMath.leftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
-                    var j2LeftOfI = RVOMath.leftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
+                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
+                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
 
                     if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
                     {
@@ -1238,8 +1179,8 @@ namespace RVO
                     }
                     else
                     {
-                        /* Split obstacle j. */
-                        var t = RVOMath.det(obstacleI2.point - obstacleI1.point, obstacleJ1.point - obstacleI1.point) / RVOMath.det(obstacleI2.point - obstacleI1.point, obstacleJ1.point - obstacleJ2.point);
+                        // Split obstacle j.
+                        var t = RVOMath.Det(obstacleI2.point - obstacleI1.point, obstacleJ1.point - obstacleI1.point) / RVOMath.Det(obstacleI2.point - obstacleI1.point, obstacleJ1.point - obstacleJ2.point);
 
                         float2 splitPoint = obstacleJ1.point + (t * (obstacleJ2.point - obstacleJ1.point));
 
@@ -1272,12 +1213,12 @@ namespace RVO
                 node.obstacleIndex = obstacleI1Index;
                 kdTree.obstacleTreeNodes[nodeIndex] = node;
 
-                var leftIndex = this.buildObstacleTreeRecursive(ref kdTree, leftObstacles);
+                var leftIndex = this.BuildObstacleTreeRecursive(ref kdTree, leftObstacles);
                 node = kdTree.obstacleTreeNodes[nodeIndex];
                 node.leftIndex = leftIndex;
                 kdTree.obstacleTreeNodes[nodeIndex] = node;
 
-                var rightIndex = this.buildObstacleTreeRecursive(ref kdTree, rightObstacles);
+                var rightIndex = this.BuildObstacleTreeRecursive(ref kdTree, rightObstacles);
                 node = kdTree.obstacleTreeNodes[nodeIndex];
                 node.rightIndex = rightIndex;
                 kdTree.obstacleTreeNodes[nodeIndex] = node;
@@ -1340,7 +1281,7 @@ namespace RVO
 
             public void Execute()
             {
-                buildAgentTree(ref this.kdTree, in this.agents);
+                BuildAgentTree(ref this.kdTree, in this.agents);
             }
         }
 
@@ -1376,8 +1317,8 @@ namespace RVO
                 var agentNeighbors = new NativeList<Agent.Pair>(Allocator.Temp);
                 var obstacleNeighbors = new NativeList<Agent.Pair>(Allocator.Temp);
 
-                agent.computeNeighbors(in index, in this.kdTree, in this.agents, in this.obstacles, ref agentNeighbors, ref obstacleNeighbors);
-                agent.computeNewVelocity(this.timeStep, in this.agents, in this.obstacles, ref agentNeighbors, ref obstacleNeighbors);
+                agent.ComputeNeighbors(in index, in this.kdTree, in this.agents, in this.obstacles, ref agentNeighbors, ref obstacleNeighbors);
+                agent.ComputeNewVelocity(this.timeStep, in this.agents, in this.obstacles, ref agentNeighbors, ref obstacleNeighbors);
                 this.agentResult[index] = agent.newVelocity;
 
                 agentNeighbors.Dispose();
@@ -1408,7 +1349,7 @@ namespace RVO
 
                 Agent agent = agents[agentNo];
                 agent.newVelocity = this.agentResult[agentNo];
-                agent.update(this.timeStep);
+                agent.Update(this.timeStep);
                 agents[agentNo] = agent;
             }
         }
