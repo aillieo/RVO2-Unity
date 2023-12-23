@@ -51,13 +51,12 @@ namespace RVO
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
 
     internal class Circle : MonoBehaviour
     {
-        /* Store the goals of the agents. */
+        // Store the goals of the agents.
         private IList<float2> goals;
 
         private Simulator simulator;
@@ -73,26 +72,21 @@ namespace RVO
         {
             this.goals = new List<float2>();
 
-            /* Specify the global time step of the simulation. */
-            this.simulator.setTimeStep(0.25f);
+            // Specify the global time step of the simulation.
+            this.simulator.SetTimeStep(0.25f);
 
-            /*
-             * Specify the default parameters for agents that are subsequently
-             * added.
-             */
-            this.simulator.setAgentDefaults(15f, 10, 10f, 10f, 1.5f, 2f, new float2(0f, 0f));
+            // Specify the default parameters for agents that are subsequently added.
+            this.simulator.SetAgentDefaults(15f, 10, 10f, 10f, 1.5f, 2f, new float2(0f, 0f));
 
-            /*
-             * Add agents, specifying their start position, and store their
-             * goals on the opposite side of the environment.
-             */
+            // Add agents, specifying their start position, and store their
+            // goals on the opposite side of the environment.
             for (var i = 0; i < 250; ++i)
             {
-                this.simulator.addAgent(200f *
+                this.simulator.AddAgent(200f *
                     new float2(
                         (float)Math.Cos(i * 2f * Math.PI / 250f),
                         (float)Math.Sin(i * 2f * Math.PI / 250f)));
-                this.goals.Add(-this.simulator.getAgentPosition(i));
+                this.goals.Add(-this.simulator.GetAgentPosition(i));
             }
         }
 
@@ -103,40 +97,38 @@ namespace RVO
                 return;
             }
 
-            this.simulator.CompleteImmediate();
+            this.simulator.EnsureCompleted();
 
-            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
             {
-                float2 position = this.simulator.getAgentPosition(i);
+                float2 position = this.simulator.GetAgentPosition(i);
                 Gizmos.DrawSphere((Vector2)position, 1.5f);
             }
         }
 
         private void setPreferredVelocities()
         {
-            /*
-             * Set the preferred velocity to be a vector of unit magnitude
-             * (speed) in the direction of the goal.
-             */
-            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
+            // Set the preferred velocity to be a vector of unit magnitude
+            // (speed) in the direction of the goal.
+            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
             {
-                float2 goalVector = this.goals[i] - this.simulator.getAgentPosition(i);
+                float2 goalVector = this.goals[i] - this.simulator.GetAgentPosition(i);
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.setAgentPrefVelocity(i, goalVector);
+                this.simulator.SetAgentPrefVelocity(i, goalVector);
             }
         }
 
         private bool reachedGoal()
         {
-            /* Check if all agents have reached their goals. */
-            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
+            // Check if all agents have reached their goals.
+            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
             {
-                if (math.lengthsq(this.simulator.getAgentPosition(i) - this.goals[i]) > this.simulator.getAgentRadius(i) * this.simulator.getAgentRadius(i))
+                if (math.lengthsq(this.simulator.GetAgentPosition(i) - this.goals[i]) > this.simulator.GetAgentRadius(i) * this.simulator.GetAgentRadius(i))
                 {
                     return false;
                 }
@@ -149,19 +141,19 @@ namespace RVO
         {
             do
             {
-                /* Set up the scenario. */
+                // Set up the scenario.
                 this.setupScenario();
 
-                /* Perform (and manipulate) the simulation. */
+                // Perform (and manipulate) the simulation.
                 do
                 {
                     this.setPreferredVelocities();
 
-                    JobHandle jobHandle = this.simulator.doStep();
+                    this.simulator.DoStep();
 
                     yield return null;
 
-                    jobHandle.Complete();
+                    this.simulator.EnsureCompleted();
                 }
                 while (!this.reachedGoal());
 

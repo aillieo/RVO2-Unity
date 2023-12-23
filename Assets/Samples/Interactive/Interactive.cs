@@ -8,7 +8,6 @@ namespace RVO
 {
     using System;
     using System.Collections.Generic;
-    using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
     using UnityEngine.Profiling;
@@ -16,7 +15,7 @@ namespace RVO
 
     public class Interactive : MonoBehaviour
     {
-        /** Random number generator. */
+        // Random number generator.
         private Random random = new Random(0);
 
         private Simulator simulator;
@@ -32,36 +31,28 @@ namespace RVO
 
         private void setupScenario()
         {
-            /* Specify the global time step of the simulation. */
-            this.simulator.setTimeStep(0.25f);
+            // Specify the global time step of the simulation.
+            this.simulator.SetTimeStep(0.25f);
 
-            /*
-             * Specify the default parameters for agents that are subsequently
-             * added.
-             */
-            this.simulator.setAgentDefaults(15f, 10, 5f, 5f, 2f, 2f, new float2(0f, 0f));
+            // Specify the default parameters for agents that are subsequently added.
+            this.simulator.SetAgentDefaults(15f, 10, 5f, 5f, 2f, 2f, new float2(0f, 0f));
 
-            /*
-             * Add agents, specifying their start position.
-             */
+            // Add agents, specifying their start position.
             for (var i = 0; i < 5; ++i)
             {
                 for (var j = 0; j < 5; ++j)
                 {
-                    this.simulator.addAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
+                    this.simulator.AddAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
 
-                    this.simulator.addAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
+                    this.simulator.AddAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
 
-                    this.simulator.addAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
+                    this.simulator.AddAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
 
-                    this.simulator.addAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
+                    this.simulator.AddAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
                 }
             }
 
-            /*
-             * Add (polygonal) obstacles, specifying their vertices in
-             * counterclockwise order.
-             */
+            // Add (polygonal) obstacles, specifying their vertices in counterclockwise order.
             IList<float2> obstacle1 = new List<float2>
             {
                 new float2(-10f, 40f),
@@ -69,7 +60,7 @@ namespace RVO
                 new float2(-40f, 10f),
                 new float2(-10f, 10f),
             };
-            this.simulator.addObstacle(obstacle1);
+            this.simulator.AddObstacle(obstacle1);
 
             IList<float2> obstacle2 = new List<float2>
             {
@@ -78,7 +69,7 @@ namespace RVO
                 new float2(40f, 10f),
                 new float2(40f, 40f),
             };
-            this.simulator.addObstacle(obstacle2);
+            this.simulator.AddObstacle(obstacle2);
 
             IList<float2> obstacle3 = new List<float2>
             {
@@ -87,7 +78,7 @@ namespace RVO
                 new float2(40f, -10f),
                 new float2(10f, -10f),
             };
-            this.simulator.addObstacle(obstacle3);
+            this.simulator.AddObstacle(obstacle3);
 
             IList<float2> obstacle4 = new List<float2>
             {
@@ -96,13 +87,10 @@ namespace RVO
                 new float2(-40f, -10f),
                 new float2(-40f, -40f),
             };
-            this.simulator.addObstacle(obstacle4);
+            this.simulator.AddObstacle(obstacle4);
 
-            /*
-             * Process the obstacles so that they are accounted for in the
-             * simulation.
-             */
-            this.simulator.processObstacles();
+            // Process the obstacles so that they are accounted for in the simulation.
+            this.simulator.ProcessObstacles();
         }
 
         private void OnDrawGizmos()
@@ -112,18 +100,18 @@ namespace RVO
                 return;
             }
 
-            this.simulator.CompleteImmediate();
+            this.simulator.EnsureCompleted();
 
-            for (var i = 0; i < this.simulator.getNumObstacleVertices(); ++i)
+            for (var i = 0; i < this.simulator.GetNumObstacleVertices(); ++i)
             {
                 var last = i;
 
                 while (true)
                 {
-                    var next = this.simulator.getNextObstacleVertexNo(last);
+                    var next = this.simulator.GetNextObstacleVertexNo(last);
 
-                    float2 p0 = this.simulator.getObstacleVertex(last);
-                    float2 p1 = this.simulator.getObstacleVertex(next);
+                    float2 p0 = this.simulator.GetObstacleVertex(last);
+                    float2 p1 = this.simulator.GetObstacleVertex(next);
 
                     Gizmos.DrawLine((Vector2)p0, (Vector2)p1);
 
@@ -138,37 +126,35 @@ namespace RVO
                 i = last;
             }
 
-            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
+            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
             {
-                float2 position = this.simulator.getAgentPosition(i);
+                float2 position = this.simulator.GetAgentPosition(i);
                 Gizmos.DrawSphere((Vector2)position, 2);
             }
         }
 
         private void setPreferredVelocities(float2 newGoal)
         {
-            /*
-             * Set the preferred velocity to be a vector of unit magnitude
-             * (speed) in the direction of the goal.
-             */
-            for (var i = 0; i < this.simulator.getNumAgents(); ++i)
+            // Set the preferred velocity to be a vector of unit magnitude
+            // (speed) in the direction of the goal.
+            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
             {
-                float2 goalVector = newGoal - this.simulator.getAgentPosition(i);
+                float2 goalVector = newGoal - this.simulator.GetAgentPosition(i);
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.setAgentPrefVelocity(i, goalVector);
+                this.simulator.SetAgentPrefVelocity(i, goalVector);
 
-                /* Perturb a little to avoid deadlocks due to perfect symmetry. */
+                // Perturb a little to avoid deadlocks due to perfect symmetry.
                 var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
                 var dist = (float)this.random.NextDouble() * 0.0001f;
 
-                this.simulator.setAgentPrefVelocity(
+                this.simulator.SetAgentPrefVelocity(
                     i,
-                    this.simulator.getAgentPrefVelocity(i) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
+                    this.simulator.GetAgentPrefVelocity(i) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
             }
         }
 
@@ -176,7 +162,7 @@ namespace RVO
         {
             this.simulator = new Simulator();
 
-            /* Set up the scenario. */
+            // Set up the scenario.
             this.setupScenario();
 
             this.sampler = CustomSampler.Create("RVO update", false);
@@ -203,22 +189,22 @@ namespace RVO
                 case TouchMode.Add:
                     if (isTouchBegan)
                     {
-                        this.simulator.addAgent(worldPos2d);
+                        this.simulator.AddAgent(worldPos2d);
                     }
 
                     break;
                 case TouchMode.Move:
                     this.sampler.Begin();
                     this.setPreferredVelocities(worldPos2d);
-                    JobHandle jobHandle = this.simulator.doStep();
-                    jobHandle.Complete();
+                    this.simulator.DoStep();
+                    this.simulator.EnsureCompleted();
                     this.sampler.End();
                     break;
                 case TouchMode.Remove:
                     if (isTouchBegan)
                     {
                         var agents = new List<int>();
-                        this.simulator.queryAgent(worldPos2d, 2f, agents);
+                        this.simulator.QueryAgent(worldPos2d, 2f, agents);
                         if (agents.Count > 0)
                         {
                             this.simulator.RemoveAgent(agents[0]);
@@ -238,7 +224,7 @@ namespace RVO
 
         private void OnGUI()
         {
-            GUILayout.Label($"Agents:{this.simulator.getNumAgents()}");
+            GUILayout.Label($"Agents:{this.simulator.GetNumAgents()}");
             GUILayout.Label($"FPS:{1f / Time.deltaTime}");
 
             GUILayout.Label($"- Press mouse and hold to move;");

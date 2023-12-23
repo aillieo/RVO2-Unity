@@ -10,6 +10,9 @@ namespace RVO
     using Unity.Collections;
     using Unity.Mathematics;
 
+    /// <summary>
+    /// Extension methods for <see cref="NativeArray"/>.
+    /// </summary>
     public static class NativeArrayExtensions
     {
         /// <summary>

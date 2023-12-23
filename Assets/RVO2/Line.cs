@@ -45,24 +45,27 @@ namespace RVO
     using System;
     using Unity.Mathematics;
 
-    /**
-     * <summary>Defines a directed line.</summary>
-     */
+    /// <summary>
+    /// Defines a directed line.
+    /// </summary>
     public struct Line : IEquatable<Line>
     {
         public float2 direction;
         public float2 point;
 
+        /// <inheritdoc/>
         public bool Equals(Line other)
         {
             return this.direction.Equals(other.direction) && this.point.Equals(other.point);
         }
 
+        /// <inheritdoc/>
         public override bool Equals(object obj)
         {
             return obj is Line other && this.Equals(other);
         }
 
+        /// <inheritdoc/>
         public override int GetHashCode()
         {
             unchecked
