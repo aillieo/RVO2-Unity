@@ -48,10 +48,10 @@ namespace RVO
     /// <summary>
     /// Defines a directed line.
     /// </summary>
-    public struct Line : IEquatable<Line>
+    internal struct Line : IEquatable<Line>
     {
-        public float2 direction;
-        public float2 point;
+        internal float2 direction;
+        internal float2 point;
 
         /// <inheritdoc/>
         public bool Equals(Line other)

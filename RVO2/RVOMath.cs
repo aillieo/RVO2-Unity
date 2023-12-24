@@ -77,9 +77,13 @@ namespace RVO
         /// <param name="vector3">The point to which the squared distance is to be calculated.</param>
         /// <returns>The squared distance from the line segment to the point.</returns>
         [BurstCompile]
-        internal static float DistSqPointLineSegment(float2 vector1, float2 vector2, float2 vector3)
+        internal static float DistSqPointLineSegment(
+            float2 vector1,
+            float2 vector2,
+            float2 vector3)
         {
-            var r = math.dot(vector3 - vector1, vector2 - vector1) / math.lengthsq(vector2 - vector1);
+            var r = math.dot(vector3 - vector1, vector2 - vector1)
+                / math.lengthsq(vector2 - vector1);
 
             if (r < 0f)
             {
