@@ -51,17 +51,19 @@ namespace RVO
     {
         internal readonly int id;
         internal readonly float2 point;
+        internal readonly int obstacle;
 
         internal int nextIndex;
         internal int previousIndex;
         internal bool convex;
         internal float2 direction;
 
-        internal Obstacle(int id, float2 point)
+        internal Obstacle(int id, float2 point, int obstacle)
             : this()
         {
             this.id = id;
             this.point = point;
+            this.obstacle = obstacle;
         }
     }
 }

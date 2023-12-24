@@ -11,7 +11,7 @@ namespace RVO
     using Unity.Mathematics;
 
     /// <summary>
-    /// Extension methods for <see cref="NativeArray"/>.
+    /// Extension methods for <see cref="NativeArray{T}"/>.
     /// </summary>
     public static class NativeArrayExtensions
     {
@@ -36,7 +36,10 @@ namespace RVO
         /// <param name="array">The NativeArray to append to.</param>
         /// <param name="item">The item to append.</param>
         /// <param name="allocator">The allocator used for resizing the NativeArray (default: Allocator.Persistent).</param>
-        public static void Append<T>(this ref NativeArray<T> array, T item, Allocator allocator = Allocator.Persistent)
+        public static void Append<T>(
+            this ref NativeArray<T> array,
+            T item,
+            Allocator allocator = Allocator.Persistent)
             where T : struct
         {
             Resize(ref array, array.Length + 1, allocator);
@@ -50,7 +53,10 @@ namespace RVO
         /// <param name="array">The NativeArray to resize.</param>
         /// <param name="newSize">The new size of the NativeArray.</param>
         /// <param name="allocator">The allocator used for resizing the NativeArray (default: Allocator.Persistent).</param>
-        public static void Resize<T>(this ref NativeArray<T> array, int newSize, Allocator allocator = Allocator.Persistent)
+        public static void Resize<T>(
+            this ref NativeArray<T> array,
+            int newSize,
+            Allocator allocator = Allocator.Persistent)
             where T : struct
         {
             if (newSize < 0)

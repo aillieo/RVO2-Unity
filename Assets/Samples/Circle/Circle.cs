@@ -57,7 +57,7 @@ namespace RVO
     internal class Circle : MonoBehaviour
     {
         // Store the goals of the agents.
-        private IList<float2> goals;
+        private Dictionary<int, float2> goals;
 
         private Simulator simulator;
 
@@ -68,9 +68,9 @@ namespace RVO
             this.StartCoroutine(this.Main());
         }
 
-        private void setupScenario()
+        private void SetupScenario()
         {
-            this.goals = new List<float2>();
+            this.goals = new Dictionary<int, float2>();
 
             // Specify the global time step of the simulation.
             this.simulator.SetTimeStep(0.25f);
@@ -82,11 +82,12 @@ namespace RVO
             // goals on the opposite side of the environment.
             for (var i = 0; i < 250; ++i)
             {
-                this.simulator.AddAgent(200f *
+                var agentId = this.simulator.AddAgent(200f *
                     new float2(
                         (float)Math.Cos(i * 2f * Math.PI / 250f),
                         (float)Math.Sin(i * 2f * Math.PI / 250f)));
-                this.goals.Add(-this.simulator.GetAgentPosition(i));
+                var goal = -this.simulator.GetAgentPosition(agentId);
+                this.goals.Add(agentId, goal);
             }
         }
 
@@ -99,36 +100,43 @@ namespace RVO
 
             this.simulator.EnsureCompleted();
 
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                float2 position = this.simulator.GetAgentPosition(i);
+                var agentId = pair.Key;
+                float2 position = this.simulator.GetAgentPosition(agentId);
                 Gizmos.DrawSphere((Vector2)position, 1.5f);
             }
         }
 
-        private void setPreferredVelocities()
+        private void SetPreferredVelocities()
         {
             // Set the preferred velocity to be a vector of unit magnitude
             // (speed) in the direction of the goal.
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                float2 goalVector = this.goals[i] - this.simulator.GetAgentPosition(i);
+                var agentId = pair.Key;
+                var goal = pair.Value;
+                float2 goalVector = goal - this.simulator.GetAgentPosition(agentId);
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.SetAgentPrefVelocity(i, goalVector);
+                this.simulator.SetAgentPrefVelocity(agentId, goalVector);
             }
         }
 
-        private bool reachedGoal()
+        private bool ReachedGoal()
         {
             // Check if all agents have reached their goals.
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                if (math.lengthsq(this.simulator.GetAgentPosition(i) - this.goals[i]) > this.simulator.GetAgentRadius(i) * this.simulator.GetAgentRadius(i))
+                var agentId = pair.Key;
+                var goal = pair.Value;
+                if (math.lengthsq(
+                    this.simulator.GetAgentPosition(agentId) - goal)
+                        > this.simulator.GetAgentRadius(agentId) * this.simulator.GetAgentRadius(agentId))
                 {
                     return false;
                 }
@@ -142,12 +150,12 @@ namespace RVO
             do
             {
                 // Set up the scenario.
-                this.setupScenario();
+                this.SetupScenario();
 
                 // Perform (and manipulate) the simulation.
                 do
                 {
-                    this.setPreferredVelocities();
+                    this.SetPreferredVelocities();
 
                     this.simulator.DoStep();
 
@@ -155,7 +163,7 @@ namespace RVO
 
                     this.simulator.EnsureCompleted();
                 }
-                while (!this.reachedGoal());
+                while (!this.ReachedGoal());
 
                 yield return new WaitForSeconds(1);
 

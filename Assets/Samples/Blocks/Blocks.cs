@@ -61,7 +61,7 @@ namespace RVO
         /// <summary>
         /// Store the goals of the agents.
         /// </summary>
-        private IList<float2> goals;
+        private Dictionary<int, float2> goals;
 
         /// <summary>
         /// Random number generator.
@@ -70,17 +70,20 @@ namespace RVO
 
         private Simulator simulator;
 
+        private List<int> obstacles;
+
         private void Start()
         {
             this.random = new Random(0);
             this.simulator = new Simulator();
+            this.obstacles = new List<int>();
 
             this.StartCoroutine(this.Main());
         }
 
-        private void setupScenario()
+        private void SetupScenario()
         {
-            this.goals = new List<float2>();
+            this.goals = new Dictionary<int, float2>();
 
             // Specify the global time step of the simulation.
             this.simulator.SetTimeStep(0.25f);
@@ -94,17 +97,21 @@ namespace RVO
             {
                 for (var j = 0; j < 5; ++j)
                 {
-                    this.simulator.AddAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
-                    this.goals.Add(new float2(-75f, -75f));
+                    var agentId = this.simulator.AddAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
+                    var goal = -this.simulator.GetAgentPosition(agentId);
+                    this.goals.Add(agentId, goal);
 
-                    this.simulator.AddAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
-                    this.goals.Add(new float2(75f, -75f));
+                    agentId = this.simulator.AddAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
+                    goal = -this.simulator.GetAgentPosition(agentId);
+                    this.goals.Add(agentId, goal);
 
-                    this.simulator.AddAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
-                    this.goals.Add(new float2(-75f, 75f));
+                    agentId = this.simulator.AddAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
+                    goal = -this.simulator.GetAgentPosition(agentId);
+                    this.goals.Add(agentId, goal);
 
-                    this.simulator.AddAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
-                    this.goals.Add(new float2(75f, 75f));
+                    agentId = this.simulator.AddAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
+                    goal = -this.simulator.GetAgentPosition(agentId);
+                    this.goals.Add(agentId, goal);
                 }
             }
 
@@ -117,7 +124,8 @@ namespace RVO
                 new float2(-40f, 10f),
                 new float2(-10f, 10f),
             };
-            this.simulator.AddObstacle(obstacle1);
+            var obstacle1Id = this.simulator.AddObstacle(obstacle1);
+            this.obstacles.Add(obstacle1Id);
 
             IList<float2> obstacle2 = new List<float2>
             {
@@ -126,7 +134,8 @@ namespace RVO
                 new float2(40f, 10f),
                 new float2(40f, 40f),
             };
-            this.simulator.AddObstacle(obstacle2);
+            var obstacle2Id = this.simulator.AddObstacle(obstacle2);
+            this.obstacles.Add(obstacle2Id);
 
             IList<float2> obstacle3 = new List<float2>
             {
@@ -135,7 +144,8 @@ namespace RVO
                 new float2(40f, -10f),
                 new float2(10f, -10f),
             };
-            this.simulator.AddObstacle(obstacle3);
+            var obstacle3Id = this.simulator.AddObstacle(obstacle3);
+            this.obstacles.Add(obstacle3Id);
 
             IList<float2> obstacle4 = new List<float2>
             {
@@ -144,7 +154,8 @@ namespace RVO
                 new float2(-40f, -10f),
                 new float2(-40f, -40f),
             };
-            this.simulator.AddObstacle(obstacle4);
+            var obstacle4Id = this.simulator.AddObstacle(obstacle4);
+            this.obstacles.Add(obstacle4Id);
 
             // Process the obstacles so that they are accounted for in the simulation.
             this.simulator.ProcessObstacles();
@@ -159,68 +170,75 @@ namespace RVO
 
             this.simulator.EnsureCompleted();
 
-            for (var i = 0; i < this.simulator.GetNumObstacleVertices(); ++i)
+            foreach (var obstacle in this.obstacles)
             {
-                var last = i;
+                var first = this.simulator.GetFirstObstacleVertexId(obstacle);
+
+                var current = first;
 
                 while (true)
                 {
-                    var next = this.simulator.GetNextObstacleVertexNo(last);
+                    var next = this.simulator.GetNextObstacleVertexId(current);
 
-                    float2 p0 = this.simulator.GetObstacleVertex(last);
+                    float2 p0 = this.simulator.GetObstacleVertex(current);
                     float2 p1 = this.simulator.GetObstacleVertex(next);
 
                     Gizmos.DrawLine((Vector2)p0, (Vector2)p1);
 
-                    if (next == i)
+                    if (next == first)
                     {
                         break;
                     }
 
-                    last = next;
+                    current = next;
                 }
-
-                i = last;
             }
 
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                float2 position = this.simulator.GetAgentPosition(i);
+                var agentId = pair.Key;
+                float2 position = this.simulator.GetAgentPosition(agentId);
                 Gizmos.DrawSphere((Vector2)position, 2);
             }
         }
 
-        private void setPreferredVelocities()
+        private void SetPreferredVelocities()
         {
             // Set the preferred velocity to be a vector of unit magnitude
             // (speed) in the direction of the goal.
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                float2 goalVector = this.goals[i] - this.simulator.GetAgentPosition(i);
+                var agentId = pair.Key;
+                var goal = pair.Value;
+                float2 goalVector = goal - this.simulator.GetAgentPosition(agentId);
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.SetAgentPrefVelocity(i, goalVector);
+                this.simulator.SetAgentPrefVelocity(agentId, goalVector);
 
                 // Perturb a little to avoid deadlocks due to perfect symmetry.
                 var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
                 var dist = (float)this.random.NextDouble() * 0.0001f;
 
                 this.simulator.SetAgentPrefVelocity(
-                    i,
-                    this.simulator.GetAgentPrefVelocity(i) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
+                    agentId,
+                    this.simulator.GetAgentPrefVelocity(agentId) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
             }
         }
 
-        private bool reachedGoal()
+        private bool ReachedGoal()
         {
             // Check if all agents have reached their goals.
-            for (var i = 0; i < this.simulator.GetNumAgents(); ++i)
+            foreach (var pair in this.goals)
             {
-                if (math.lengthsq(this.simulator.GetAgentPosition(i) - this.goals[i]) > 400f)
+                var agentId = pair.Key;
+                var goal = pair.Value;
+                if (math.lengthsq(
+                    this.simulator.GetAgentPosition(agentId) - goal)
+                        > this.simulator.GetAgentRadius(agentId) * this.simulator.GetAgentRadius(agentId))
                 {
                     return false;
                 }
@@ -234,12 +252,12 @@ namespace RVO
             do
             {
                 // Set up the scenario.
-                this.setupScenario();
+                this.SetupScenario();
 
                 // Perform (and manipulate) the simulation.
                 do
                 {
-                    this.setPreferredVelocities();
+                    this.SetPreferredVelocities();
 
                     this.simulator.DoStep();
 
@@ -247,7 +265,7 @@ namespace RVO
 
                     this.simulator.EnsureCompleted();
                 }
-                while (!this.reachedGoal());
+                while (!this.ReachedGoal());
 
                 yield return new WaitForSeconds(1);
 
