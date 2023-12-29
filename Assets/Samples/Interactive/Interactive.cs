@@ -132,9 +132,6 @@ namespace RVO
                 new float2(-100f, -100f),
             };
             this.bounds = this.simulator.AddObstacle(boundVerts);
-
-            // Process the obstacles so that they are accounted for in the simulation.
-            this.simulator.ProcessObstacles();
         }
 
         private void OnDrawGizmos()
@@ -314,7 +311,6 @@ namespace RVO
                                 {
                                     data.obstacleId = newId;
                                     data.active = newActive;
-                                    this.simulator.ProcessObstacles();
                                 }
                             }
                             else
@@ -325,8 +321,6 @@ namespace RVO
                                 {
                                     data.active = newActive;
                                 }
-
-                                this.simulator.ProcessObstacles();
                             }
 
                             this.obstacles[i] = data;
