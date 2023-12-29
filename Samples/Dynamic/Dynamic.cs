@@ -23,7 +23,7 @@ namespace RVO
         private CustomSampler sampler;
 
         private List<RepeatedTask> repeatedTasks;
-        private Dictionary<int, float2> goals;
+        private Dictionary<int, GoalAndColor> agentData;
         private List<int> obstacles;
 
         private void SetupScenario()
@@ -35,7 +35,7 @@ namespace RVO
             this.simulator.SetAgentDefaults(15f, 10, 5f, 5f, 2f, 0.5f, new float2(0f, 0f));
 
             this.repeatedTasks = new List<RepeatedTask>();
-            this.goals = new Dictionary<int, float2>();
+            this.agentData = new Dictionary<int, GoalAndColor>();
 
             // Agents spawning.
             for (var i = 0; i < 3; ++i)
@@ -44,22 +44,26 @@ namespace RVO
                 {
                     var position = new float2(60f + (i * 10f), 60f + (j * 10f));
                     var goal = -position;
-                    var task = new SpawnTask(position, goal, this.simulator, this.goals) { interval = 2, timer = 0 };
+                    var color = Color.red;
+                    var task = new SpawnTask(position, goal, color, this.simulator, this.agentData) { interval = 1000, frameCounter = 0 };
                     this.repeatedTasks.Add(task);
 
                     position = new float2(-60f - (i * 10f), 60f + (j * 10f));
                     goal = -position;
-                    task = new SpawnTask(position, goal, this.simulator, this.goals) { interval = 2, timer = 0.5f };
+                    color = Color.green;
+                    task = new SpawnTask(position, goal, color, this.simulator, this.agentData) { interval = 1000, frameCounter = 250 };
                     this.repeatedTasks.Add(task);
 
                     position = new float2(60f + (i * 10f), -60f - (j * 10f));
                     goal = -position;
-                    task = new SpawnTask(position, goal, this.simulator, this.goals) { interval = 2, timer = 1f };
+                    color = Color.blue;
+                    task = new SpawnTask(position, goal, color, this.simulator, this.agentData) { interval = 1000, frameCounter = 500 };
                     this.repeatedTasks.Add(task);
 
                     position = new float2(-60f - (i * 10f), -60f - (j * 10f));
                     goal = -position;
-                    task = new SpawnTask(position, goal, this.simulator, this.goals) { interval = 2, timer = 1.5f };
+                    color = Color.white;
+                    task = new SpawnTask(position, goal, color, this.simulator, this.agentData) { interval = 1000, frameCounter = 750 };
                     this.repeatedTasks.Add(task);
                 }
             }
@@ -77,7 +81,7 @@ namespace RVO
                     new float2(-15f, 35f),
                     new float2(-15f, 45f),
                 };
-                var task = new ObstacleSwitchTask(obstacle1, this.simulator, this.obstacles) { interval = 5, timer = -2.5f };
+                var task = new ObstacleSwitchTask(obstacle1, this.simulator, this.obstacles) { interval = 600, frameCounter = -300 };
                 this.repeatedTasks.Add(task);
 
                 IList<float2> obstacle2 = new List<float2>
@@ -88,7 +92,7 @@ namespace RVO
                     new float2(35f, 15f),
                     new float2(45f, 15f),
                 };
-                task = new ObstacleSwitchTask(obstacle2, this.simulator, this.obstacles) { interval = 5, timer = 0f };
+                task = new ObstacleSwitchTask(obstacle2, this.simulator, this.obstacles) { interval = 600, frameCounter = 0 };
                 this.repeatedTasks.Add(task);
 
                 IList<float2> obstacle3 = new List<float2>
@@ -99,7 +103,7 @@ namespace RVO
                     new float2(15f, -35f),
                     new float2(15f, -45f),
                 };
-                task = new ObstacleSwitchTask(obstacle3, this.simulator, this.obstacles) { interval = 5, timer = 2.5f };
+                task = new ObstacleSwitchTask(obstacle3, this.simulator, this.obstacles) { interval = 600, frameCounter = 300 };
                 this.repeatedTasks.Add(task);
 
                 IList<float2> obstacle4 = new List<float2>
@@ -110,15 +114,12 @@ namespace RVO
                     new float2(-35f, -15f),
                     new float2(-45f, -15f),
                 };
-                task = new ObstacleSwitchTask(obstacle4, this.simulator, this.obstacles) { interval = 5, timer = 5f };
+                task = new ObstacleSwitchTask(obstacle4, this.simulator, this.obstacles) { interval = 600, frameCounter = 600 };
                 this.repeatedTasks.Add(task);
-
-                // Process the obstacles so that they are accounted for in the simulation.
-                this.simulator.ProcessObstacles();
             }
 
             // Agents destroy.
-            this.repeatedTasks.Add(new AgentCleanupTask(this.simulator, this.goals) { interval = 0.1f, timer = 0 });
+            this.repeatedTasks.Add(new AgentCleanupTask(this.simulator, this.agentData) { interval = 5, frameCounter = 0 });
         }
 
         private void OnDrawGizmos()
@@ -154,22 +155,27 @@ namespace RVO
                 }
             }
 
-            foreach (var pair in this.goals)
+            Color gizmosBackup = Gizmos.color;
+
+            foreach (var pair in this.agentData)
             {
                 var agentId = pair.Key;
                 float2 position = this.simulator.GetAgentPosition(agentId);
+                Gizmos.color = pair.Value.color;
                 Gizmos.DrawSphere((Vector2)position, 2);
             }
+
+            Gizmos.color = gizmosBackup;
         }
 
         private void SetPreferredVelocities()
         {
             // Set the preferred velocity to be a vector of unit magnitude
             // (speed) in the direction of the goal.
-            foreach (var pair in this.goals)
+            foreach (var pair in this.agentData)
             {
                 var agentId = pair.Key;
-                var goal = pair.Value;
+                var goal = pair.Value.goal;
                 float2 goalVector = goal - this.simulator.GetAgentPosition(agentId);
 
                 if (math.lengthsq(goalVector) > 0.01f)
@@ -202,13 +208,12 @@ namespace RVO
 
         private void Update()
         {
-            var deltaTime = Time.deltaTime;
             foreach (var task in this.repeatedTasks)
             {
-                task.timer += deltaTime;
-                if (task.timer >= task.interval)
+                task.frameCounter++;
+                if (task.frameCounter >= task.interval)
                 {
-                    task.timer -= task.interval;
+                    task.frameCounter -= task.interval;
                     task.Execute();
                 }
             }
@@ -227,10 +232,22 @@ namespace RVO
             this.simulator.Dispose();
         }
 
+        private readonly struct GoalAndColor
+        {
+            internal readonly float2 goal;
+            internal readonly Color color;
+
+            internal GoalAndColor(float2 goal, Color color)
+            {
+                this.goal = goal;
+                this.color = color;
+            }
+        }
+
         private abstract class RepeatedTask
         {
-            internal float timer;
-            internal float interval;
+            internal int frameCounter;
+            internal int interval;
 
             internal abstract void Execute();
         }
@@ -239,15 +256,17 @@ namespace RVO
         {
             private readonly float2 position;
             private readonly float2 goal;
+            private readonly Color color;
             private readonly Simulator simulator;
-            private readonly Dictionary<int, float2> agentToGoals;
+            private readonly Dictionary<int, GoalAndColor> agentData;
 
-            internal SpawnTask(float2 position, float2 goal, Simulator simulator, Dictionary<int, float2> agentToGoals)
+            internal SpawnTask(float2 position, float2 goal, Color color, Simulator simulator, Dictionary<int, GoalAndColor> agentData)
             {
                 this.position = position;
                 this.goal = goal;
                 this.simulator = simulator;
-                this.agentToGoals = agentToGoals;
+                this.agentData = agentData;
+                this.color = color;
             }
 
             internal override void Execute()
@@ -255,30 +274,30 @@ namespace RVO
                 this.simulator.EnsureCompleted();
 
                 var agentId = this.simulator.AddAgent(this.position);
-                this.agentToGoals.Add(agentId, this.goal);
+                this.agentData.Add(agentId, new GoalAndColor(this.goal, this.color));
             }
         }
 
         private class AgentCleanupTask : RepeatedTask
         {
             private readonly Simulator simulator;
-            private readonly Dictionary<int, float2> agentToGoals;
+            private readonly Dictionary<int, GoalAndColor> agentData;
             private readonly List<int> buffer = new List<int>();
 
-            internal AgentCleanupTask(Simulator simulator, Dictionary<int, float2> agentToGoals)
+            internal AgentCleanupTask(Simulator simulator, Dictionary<int, GoalAndColor> agentData)
             {
                 this.simulator = simulator;
-                this.agentToGoals = agentToGoals;
+                this.agentData = agentData;
             }
 
             internal override void Execute()
             {
                 this.simulator.EnsureCompleted();
 
-                foreach (var pair in this.agentToGoals)
+                foreach (var pair in this.agentData)
                 {
                     var agentId = pair.Key;
-                    var goal = pair.Value;
+                    var goal = pair.Value.goal;
                     if (math.lengthsq(
                         this.simulator.GetAgentPosition(agentId) - goal)
                             <= this.simulator.GetAgentRadius(agentId) * this.simulator.GetAgentRadius(agentId))
@@ -293,7 +312,7 @@ namespace RVO
 
                 foreach (var agent in this.buffer)
                 {
-                    this.agentToGoals.Remove(agent);
+                    this.agentData.Remove(agent);
                 }
 
                 this.buffer.Clear();
@@ -330,8 +349,6 @@ namespace RVO
                     this.obstacles.Remove(this.obstacleId);
                     this.obstacleId = -1;
                 }
-
-                this.simulator.ProcessObstacles();
             }
         }
     }

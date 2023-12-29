@@ -141,7 +141,7 @@ namespace RVO
             /// <param name="rangeSq">The squared range around the agent.</param>
             /// <param name="agents">The array that holds the agent data.</param>
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
-            internal void ComputeAgentNeighbors(
+            internal readonly void ComputeAgentNeighbors(
                 int agentIndex,
                 ref float rangeSq,
                 in NativeArray<Agent>.ReadOnly agents,
@@ -158,7 +158,7 @@ namespace RVO
             /// <param name="rangeSq">The squared range around the agent.</param>
             /// <param name="obstacles">The array that holds the obstacle verts.</param>
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
-            internal void ComputeObstacleNeighbors(
+            internal readonly void ComputeObstacleNeighbors(
                 Agent agent,
                 float rangeSq,
                 in NativeArray<Obstacle>.ReadOnly obstacles,
@@ -201,7 +201,7 @@ namespace RVO
             /// <param name="node">The current agent k-D tree node index.</param>
             /// <param name="agents">The array that holds the agent data.</param>
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
-            private void QueryAgentTreeRecursive(
+            private readonly void QueryAgentTreeRecursive(
                 int agentIndex,
                 ref float rangeSq,
                 int node,
@@ -272,7 +272,7 @@ namespace RVO
             /// <param name="nodeIndex"> The current obstacle k-D node.</param>
             /// <param name="obstacles">The array that holds the obstacle verts.</param>
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
-            private void QueryObstacleTreeRecursive(
+            private readonly void QueryObstacleTreeRecursive(
                 Agent agent,
                 float rangeSq,
                 int nodeIndex,

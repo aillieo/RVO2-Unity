@@ -74,6 +74,9 @@ namespace RVO
         private float globalTime;
         private bool disposedValue;
 
+        private bool agentTreeDirty;
+        private bool obstacleTreeDirty;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Simulator"/> class.
         /// </summary>
@@ -181,6 +184,8 @@ namespace RVO
                 this.obstacles[obstacleIndex] = obstacle;
             }
 
+            this.obstacleTreeDirty = true;
+
             return obstacleId;
         }
 
@@ -202,11 +207,7 @@ namespace RVO
             this.agentIndexLookup.Remove(agentId);
             this.agentIndexLookup[lastId] = index;
 
-            // Rebuild agent tree.
-            this.EnsureCompleted();
-            EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
-            var buildJob = new BuildJob(this.kdTree, this.agents.AsParallelReader());
-            this.jobHandle = buildJob.Schedule();
+            this.agentTreeDirty = true;
 
             return true;
         }
@@ -235,11 +236,7 @@ namespace RVO
                 this.agentIndexLookup[lastId] = index;
             }
 
-            // Rebuild agent tree.
-            this.EnsureCompleted();
-            EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
-            var buildJob = new BuildJob(this.kdTree, this.agents.AsParallelReader());
-            this.jobHandle = buildJob.Schedule();
+            this.agentTreeDirty = true;
 
             return removed;
         }
@@ -257,8 +254,6 @@ namespace RVO
 
             if (buffer.IsCreated && buffer.Length > 0)
             {
-                this.EnsureCompleted();
-
                 for (var i = buffer.Length - 1; i >= 0; --i)
                 {
                     var index = buffer[i];
@@ -297,9 +292,7 @@ namespace RVO
 
             this.obstacleIndexLookup.Remove(obstacleId);
 
-            // Rebuild obstacle tree.
-            this.EnsureCompleted();
-            this.ProcessObstacles();
+            this.obstacleTreeDirty = true;
 
             return true;
         }
@@ -339,6 +332,9 @@ namespace RVO
             this.timeStep = 0.1f;
 
             this.SetNumWorkers(0);
+
+            this.agentTreeDirty = false;
+            this.obstacleTreeDirty = false;
         }
 
         /// <summary>
@@ -347,6 +343,10 @@ namespace RVO
         /// </summary>
         public void DoStep()
         {
+            this.EnsureCompleted();
+
+            this.EnsureObstacleTree();
+
             var arrayLength = this.agents.Length;
 
             EnsureTreeCapacity(ref this.kdTree, arrayLength);
@@ -643,17 +643,6 @@ namespace RVO
         }
 
         /// <summary>
-        /// Processes the obstacles that have been added so that they are
-        /// accounted for in the simulation.
-        /// </summary>
-        /// <remarks>Obstacles added to the simulation after this function has
-        /// been called are not accounted for in the simulation.</remarks>
-        public void ProcessObstacles()
-        {
-            this.BuildObstacleTree();
-        }
-
-        /// <summary>
         /// Performs a visibility query between the two specified points
         /// with respect to the obstacles.
         /// </summary>
@@ -667,6 +656,11 @@ namespace RVO
         /// </returns>
         public bool QueryVisibility(float2 point1, float2 point2, float radius)
         {
+            this.EnsureCompleted();
+
+            this.EnsureAgentTree();
+            this.EnsureObstacleTree();
+
             return this.kdTree.AsParallelReader()
                 .QueryVisibility(point1, point2, radius, this.obstacles);
         }
@@ -902,6 +896,8 @@ namespace RVO
 
             this.EnsureCompleted();
 
+            this.EnsureAgentTree();
+
             NativeArray<Agent> agentsAsArray = this.agents;
 
             var buffer = new NativeList<Agent>(Allocator.Temp);
@@ -1085,6 +1081,26 @@ namespace RVO
             this.obstacleIndexLookup.Add(obstacleId, newIndex);
 
             return newIndex;
+        }
+
+        private void EnsureAgentTree()
+        {
+            if (this.agentTreeDirty)
+            {
+                EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
+                var agentsReadonly = this.agents.AsParallelReader();
+                BuildAgentTree(ref this.kdTree, in agentsReadonly);
+                this.agentTreeDirty = false;
+            }
+        }
+
+        private void EnsureObstacleTree()
+        {
+            if (this.obstacleTreeDirty)
+            {
+                this.BuildObstacleTree();
+                this.obstacleTreeDirty = false;
+            }
         }
 
         /// <summary>
@@ -1384,6 +1400,8 @@ namespace RVO
 
             this.agents.Add(agent);
             this.agentIndexLookup[agentId] = newIndex;
+
+            this.agentTreeDirty = true;
 
             return newIndex;
         }

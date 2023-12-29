@@ -156,9 +156,6 @@ namespace RVO
             };
             var obstacle4Id = this.simulator.AddObstacle(obstacle4);
             this.obstacles.Add(obstacle4Id);
-
-            // Process the obstacles so that they are accounted for in the simulation.
-            this.simulator.ProcessObstacles();
         }
 
         private void OnDrawGizmos()
