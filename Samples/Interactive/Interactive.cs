@@ -196,6 +196,20 @@ namespace RVO
                         current = next;
                     }
                 }
+                else
+                {
+                    Color gizmosBackup = Gizmos.color;
+                    Gizmos.color = new Color(1, 1, 1, 0.2f);
+
+                    var total = obstacle.points.Count;
+                    for (var i = 0; i < total; i++)
+                    {
+                        var next = (i + 1) % total;
+                        Gizmos.DrawLine((Vector2)obstacle.points[i], (Vector2)obstacle.points[next]);
+                    }
+
+                    Gizmos.color = gizmosBackup;
+                }
             }
 
             foreach (var agentId in this.agents)

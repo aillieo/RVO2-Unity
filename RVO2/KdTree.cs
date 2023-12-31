@@ -44,6 +44,7 @@ namespace RVO
 {
     using System;
     using Unity.Collections;
+    using Unity.Collections.LowLevel.Unsafe;
     using Unity.Mathematics;
 
     /// <summary>
@@ -180,15 +181,18 @@ namespace RVO
                 return this.QueryVisibilityRecursive(q1, q2, radius, 0, obstacles);
             }
 
-            internal void QueryAgentTree(
+            internal unsafe void QueryAgentTree(
                 in float2 position,
                 in float range,
                 in NativeArray<Agent> agents,
                 ref NativeList<Agent> result)
             {
+                var agentsPtr = (Agent*)agents.GetUnsafePtr();
+                var agentsLength = agents.Length;
+
                 if (agents.Length > 0)
                 {
-                    this.QueryAgentTreeRecursive(0, position, range, in agents, ref result);
+                    this.QueryAgentTreeRecursive(0, position, range, agentsPtr, agentsLength, ref result);
                 }
             }
 
@@ -386,34 +390,38 @@ namespace RVO
                     && this.QueryVisibilityRecursive(q1, q2, radius, node.rightIndex, obstacles);
             }
 
-            private void QueryAgentTreeRecursive(
+            private unsafe void QueryAgentTreeRecursive(
                 int nodeIndex,
                 in float2 position,
                 in float range,
-                in NativeArray<Agent> agents,
+                Agent* agents,
+                in int agentsLength,
                 ref NativeList<Agent> result)
             {
-                AgentTreeNode node = this.agentTree[nodeIndex];
+                var agentTreePtr = (AgentTreeNode*)this.agentTree.GetUnsafeReadOnlyPtr();
+                AgentTreeNode* node = &agentTreePtr[nodeIndex];
 
                 // Check if the position is within the range of the node's bounding box
-                if (position.x - range > node.maxX
-                    || position.x + range < node.minX
-                    || position.y - range > node.maxY
-                    || position.y + range < node.minY)
+                if (position.x - range > node->maxX
+                    || position.x + range < node->minX
+                    || position.y - range > node->maxY
+                    || position.y + range < node->minY)
                 {
                     return;
                 }
 
                 var rangeSq = RVOMath.Square(range);
 
+                var agentsIdsPtr = (int*)this.agentIds.GetUnsafeReadOnlyPtr();
+
                 // Check if the node is a leaf node
-                if (node.end - node.begin <= MaxLeafSize)
+                if (node->end - node->begin <= MaxLeafSize)
                 {
                     // Iterate over the agentIds in the leaf node
-                    for (var i = node.begin; i < node.end; ++i)
+                    for (var i = node->begin; i < node->end; ++i)
                     {
-                        var agentIndex = this.agentIds[i];
-                        float2 agentPosition = agents[agentIndex].position;
+                        var agentIndex = agentsIdsPtr[i];
+                        float2 agentPosition = (&agents[agentIndex])->position;
 
                         // Check if the agent is within the specified range
                         if (math.distancesq(position, agentPosition) <= rangeSq)
@@ -425,8 +433,8 @@ namespace RVO
                 else
                 {
                     // Child nodes
-                    this.QueryAgentTreeRecursive(node.left, position, range, in agents, ref result);
-                    this.QueryAgentTreeRecursive(node.right, position, range, in agents, ref result);
+                    this.QueryAgentTreeRecursive(node->left, position, range, agents, in agentsLength, ref result);
+                    this.QueryAgentTreeRecursive(node->right, position, range, agents, in agentsLength, ref result);
                 }
             }
         }

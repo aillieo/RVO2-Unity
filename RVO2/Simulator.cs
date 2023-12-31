@@ -47,6 +47,7 @@ namespace RVO
     using System.Threading;
     using Unity.Burst;
     using Unity.Collections;
+    using Unity.Collections.LowLevel.Unsafe;
     using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
@@ -1163,19 +1164,21 @@ namespace RVO
         /// <summary>
         /// Builds an obstacle k-D tree.
         /// </summary>
-        private void BuildObstacleTree()
+        private unsafe void BuildObstacleTree()
         {
             var kdTreeToBuild = this.kdTree;
             kdTreeToBuild.obstacleTreeNodes.Resize(0);
 
-            var obstacleIds = new NativeArray<int>(this.obstacles.Length, Allocator.Temp);
+            var obstaclesLength = this.obstacles.Length;
+            var obstacleIds = new NativeArray<int>(obstaclesLength, Allocator.Temp);
+            var pointer = (int*)obstacleIds.GetUnsafePtr();
 
-            for (var i = 0; i < this.obstacles.Length; ++i)
+            for (var i = 0; i < obstaclesLength; ++i)
             {
-                obstacleIds[i] = i;
+                pointer[i] = i;
             }
 
-            this.BuildObstacleTreeRecursive(ref kdTreeToBuild, in obstacleIds);
+            this.BuildObstacleTreeRecursive(ref kdTreeToBuild, pointer, obstaclesLength);
             this.kdTree = kdTreeToBuild;
 
             obstacleIds.Dispose();
@@ -1185,37 +1188,42 @@ namespace RVO
         /// Recursive method for building an obstacle k-D tree.
         /// </summary>
         /// <param name="kdTreeToBuild">The k-D tree.</param>
-        /// <param name="obstacleIds">A list of obstacles.</param>
+        /// <param name="obstacleIds">A pointer to the array holds obstacle Ids.</param>
+        /// <param name="obstacleLength">Length of the array holds obstacle Ids.</param>
         /// <returns>An obstacle k-D tree node.</returns>
-        private int BuildObstacleTreeRecursive(
+        private unsafe int BuildObstacleTreeRecursive(
             ref KdTree kdTreeToBuild,
-            in NativeArray<int> obstacleIds)
+            int* obstacleIds,
+            in int obstacleLength)
         {
-            if (obstacleIds.Length == 0)
+            if (obstacleLength == 0)
             {
                 return -1;
             }
 
             var nodeIndex = kdTreeToBuild.NewObstacleTreeNode();
-            KdTree.ObstacleTreeNode node = kdTreeToBuild.obstacleTreeNodes[nodeIndex];
+            var obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
+            KdTree.ObstacleTreeNode* node = &obstacleTreeNodesPtr[nodeIndex];
             this.kdTree = kdTreeToBuild;
 
             var optimalSplit = 0;
-            var minLeft = obstacleIds.Length;
-            var minRight = obstacleIds.Length;
+            var minLeft = obstacleLength;
+            var minRight = obstacleLength;
 
-            for (var i = 0; i < obstacleIds.Length; ++i)
+            var obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
+
+            for (var i = 0; i < obstacleLength; ++i)
             {
                 var leftSize = 0;
                 var rightSize = 0;
 
                 var obstacleI1Index = obstacleIds[i];
-                Obstacle obstacleI1 = this.obstacles[obstacleI1Index];
-                var obstacleI2Index = obstacleI1.nextIndex;
-                Obstacle obstacleI2 = this.obstacles[obstacleI2Index];
+                Obstacle* obstacleI1 = &obstaclesPtr[obstacleI1Index];
+                var obstacleI2Index = obstacleI1->nextIndex;
+                Obstacle* obstacleI2 = &obstaclesPtr[obstacleI2Index];
 
                 // Compute optimal split node.
-                for (var j = 0; j < obstacleIds.Length; ++j)
+                for (var j = 0; j < obstacleLength; ++j)
                 {
                     if (i == j)
                     {
@@ -1223,12 +1231,12 @@ namespace RVO
                     }
 
                     var obstacleJ1Index = obstacleIds[j];
-                    Obstacle obstacleJ1 = this.obstacles[obstacleJ1Index];
-                    var obstacleJ2Index = obstacleJ1.nextIndex;
-                    Obstacle obstacleJ2 = this.obstacles[obstacleJ2Index];
+                    Obstacle* obstacleJ1 = &obstaclesPtr[obstacleJ1Index];
+                    var obstacleJ2Index = obstacleJ1->nextIndex;
+                    Obstacle* obstacleJ2 = &obstaclesPtr[obstacleJ2Index];
 
-                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
-                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
+                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
+                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
 
                     if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
                     {
@@ -1269,17 +1277,19 @@ namespace RVO
             {
                 // Build split node.
                 var leftObstacles = new NativeArray<int>(minLeft, Allocator.Temp);
+                var leftObstaclesPtr = (int*)leftObstacles.GetUnsafePtr();
 
                 for (var n = 0; n < minLeft; ++n)
                 {
-                    leftObstacles[n] = -1;
+                    leftObstaclesPtr[n] = -1;
                 }
 
                 var rightObstacles = new NativeArray<int>(minRight, Allocator.Temp);
+                var rightObstaclesPtr = (int*)rightObstacles.GetUnsafePtr();
 
                 for (var n = 0; n < minRight; ++n)
                 {
-                    rightObstacles[n] = -1;
+                    rightObstaclesPtr[n] = -1;
                 }
 
                 var leftCounter = 0;
@@ -1287,11 +1297,11 @@ namespace RVO
                 var i = optimalSplit;
 
                 var obstacleI1Index = obstacleIds[i];
-                Obstacle obstacleI1 = this.obstacles[obstacleI1Index];
-                var obstacleI2Index = obstacleI1.nextIndex;
-                Obstacle obstacleI2 = this.obstacles[obstacleI2Index];
+                Obstacle* obstacleI1 = &obstaclesPtr[obstacleI1Index];
+                var obstacleI2Index = obstacleI1->nextIndex;
+                Obstacle* obstacleI2 = &obstaclesPtr[obstacleI2Index];
 
-                for (var j = 0; j < obstacleIds.Length; ++j)
+                for (var j = 0; j < obstacleLength; ++j)
                 {
                     if (i == j)
                     {
@@ -1299,68 +1309,85 @@ namespace RVO
                     }
 
                     var obstacleJ1Index = obstacleIds[j];
-                    Obstacle obstacleJ1 = this.obstacles[obstacleJ1Index];
-                    var obstacleJ2Index = obstacleJ1.nextIndex;
-                    Obstacle obstacleJ2 = this.obstacles[obstacleJ2Index];
+                    Obstacle* obstacleJ1 = &obstaclesPtr[obstacleJ1Index];
+                    var obstacleJ2Index = obstacleJ1->nextIndex;
+                    Obstacle* obstacleJ2 = &obstaclesPtr[obstacleJ2Index];
 
-                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ1.point);
-                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1.point, obstacleI2.point, obstacleJ2.point);
+                    var j1LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
+                    var j2LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
 
                     if (j1LeftOfI >= -RVOMath.RVO_EPSILON && j2LeftOfI >= -RVOMath.RVO_EPSILON)
                     {
-                        leftObstacles[leftCounter++] = obstacleIds[j];
+                        leftObstaclesPtr[leftCounter++] = obstacleIds[j];
                     }
                     else if (j1LeftOfI <= RVOMath.RVO_EPSILON && j2LeftOfI <= RVOMath.RVO_EPSILON)
                     {
-                        rightObstacles[rightCounter++] = obstacleIds[j];
+                        rightObstaclesPtr[rightCounter++] = obstacleIds[j];
                     }
                     else
                     {
                         // Split obstacle j.
-                        var dI2I1 = obstacleI2.point - obstacleI1.point;
-                        var t = RVOMath.Det(dI2I1, obstacleJ1.point - obstacleI1.point)
-                            / RVOMath.Det(dI2I1, obstacleJ1.point - obstacleJ2.point);
+                        var dI2I1 = obstacleI2->point - obstacleI1->point;
+                        var t = RVOMath.Det(dI2I1, obstacleJ1->point - obstacleI1->point)
+                            / RVOMath.Det(dI2I1, obstacleJ1->point - obstacleJ2->point);
 
-                        float2 splitPoint = obstacleJ1.point + (t * (obstacleJ2.point - obstacleJ1.point));
+                        float2 splitPoint = obstacleJ1->point + (t * (obstacleJ2->point - obstacleJ1->point));
 
-                        var newObstacleIndex = this.NewObstacleVert(splitPoint, obstacleJ1.obstacle);
-                        Obstacle newObstacle = this.obstacles[newObstacleIndex];
-                        newObstacle.previousIndex = obstacleJ1Index;
-                        newObstacle.nextIndex = obstacleJ2Index;
-                        newObstacle.convex = true;
-                        newObstacle.direction = obstacleJ1.direction;
-                        this.obstacles[newObstacleIndex] = newObstacle;
+                        // NewObstacleVert will cause this.obstacles change
+                        // so the old obstaclesPtr value became invalid and we have to assign again.
+                        var newObstacleIndex = this.NewObstacleVert(splitPoint, obstacleJ1->obstacle);
+                        obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
+                        Obstacle* newObstacle = &obstaclesPtr[newObstacleIndex];
+                        newObstacle->previousIndex = obstacleJ1Index;
+                        newObstacle->nextIndex = obstacleJ2Index;
+                        newObstacle->convex = true;
+                        newObstacle->direction = obstacleJ1->direction;
+                        obstaclesPtr[newObstacleIndex] = *newObstacle;
 
-                        obstacleJ1.nextIndex = newObstacleIndex;
-                        obstacleJ2.previousIndex = newObstacleIndex;
-                        this.obstacles[obstacleJ1Index] = obstacleJ1;
-                        this.obstacles[obstacleJ2Index] = obstacleJ2;
+                        obstacleJ1->nextIndex = newObstacleIndex;
+                        obstacleJ2->previousIndex = newObstacleIndex;
+                        obstaclesPtr[obstacleJ1Index] = *obstacleJ1;
+                        obstaclesPtr[obstacleJ2Index] = *obstacleJ2;
 
                         if (j1LeftOfI > 0f)
                         {
-                            leftObstacles[leftCounter++] = obstacleJ1Index;
-                            rightObstacles[rightCounter++] = newObstacleIndex;
+                            leftObstaclesPtr[leftCounter++] = obstacleJ1Index;
+                            rightObstaclesPtr[rightCounter++] = newObstacleIndex;
                         }
                         else
                         {
-                            rightObstacles[rightCounter++] = obstacleJ1Index;
-                            leftObstacles[leftCounter++] = newObstacleIndex;
+                            rightObstaclesPtr[rightCounter++] = obstacleJ1Index;
+                            leftObstaclesPtr[leftCounter++] = newObstacleIndex;
                         }
                     }
                 }
 
-                node.obstacleIndex = obstacleI1Index;
-                kdTreeToBuild.obstacleTreeNodes[nodeIndex] = node;
+                node->obstacleIndex = obstacleI1Index;
+                obstacleTreeNodesPtr[nodeIndex] = *node;
 
-                var leftIndex = this.BuildObstacleTreeRecursive(ref kdTreeToBuild, leftObstacles);
-                node = kdTreeToBuild.obstacleTreeNodes[nodeIndex];
-                node.leftIndex = leftIndex;
-                kdTreeToBuild.obstacleTreeNodes[nodeIndex] = node;
+                var leftIndex = this.BuildObstacleTreeRecursive(
+                    ref kdTreeToBuild,
+                    (int*)leftObstacles.GetUnsafePtr(),
+                    leftObstacles.Length);
 
-                var rightIndex = this.BuildObstacleTreeRecursive(ref kdTreeToBuild, rightObstacles);
-                node = kdTreeToBuild.obstacleTreeNodes[nodeIndex];
-                node.rightIndex = rightIndex;
-                kdTreeToBuild.obstacleTreeNodes[nodeIndex] = node;
+                // NewObstacleTreeNode() in BuildObstacleTreeRecursive() will cause obstacleTreeNodes change
+                // so the old obstacleTreeNodesPtr value became invalid and we have to assign again.
+                obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
+                node = &obstacleTreeNodesPtr[nodeIndex];
+                node->leftIndex = leftIndex;
+                obstacleTreeNodesPtr[nodeIndex] = *node;
+
+                var rightIndex = this.BuildObstacleTreeRecursive(
+                    ref kdTreeToBuild,
+                    (int*)rightObstacles.GetUnsafePtr(),
+                    rightObstacles.Length);
+
+                // NewObstacleTreeNode() in BuildObstacleTreeRecursive() will cause obstacleTreeNodes change
+                // so the old obstacleTreeNodesPtr value became invalid and we have to assign again.
+                obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
+                node = &obstacleTreeNodesPtr[nodeIndex];
+                node->rightIndex = rightIndex;
+                obstacleTreeNodesPtr[nodeIndex] = *node;
 
                 leftObstacles.Dispose();
                 rightObstacles.Dispose();
