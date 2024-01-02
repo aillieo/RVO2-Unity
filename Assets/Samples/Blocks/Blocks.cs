@@ -74,6 +74,8 @@ namespace RVO
 
         private void Start()
         {
+            EditorUtils.DrawGizmosSceneView(true);
+
             this.random = new Random(0);
             this.simulator = new Simulator();
             this.obstacles = new List<int>();

@@ -198,6 +198,8 @@ namespace RVO
 
         private void Start()
         {
+            EditorUtils.DrawGizmosSceneView(true);
+
             this.simulator = new Simulator();
 
             // Set up the scenario.
@@ -208,6 +210,8 @@ namespace RVO
 
         private void Update()
         {
+            this.simulator.EnsureCompleted();
+
             foreach (var task in this.repeatedTasks)
             {
                 task.frameCounter++;
