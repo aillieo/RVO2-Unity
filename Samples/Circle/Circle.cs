@@ -63,6 +63,8 @@ namespace RVO
 
         private void Start()
         {
+            EditorUtils.DrawGizmosSceneView(true);
+
             this.simulator = new Simulator();
 
             this.StartCoroutine(this.Main());

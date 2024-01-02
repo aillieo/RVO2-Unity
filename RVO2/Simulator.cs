@@ -109,15 +109,21 @@ namespace RVO
         /// have not been set.</returns>
         public int AddAgent(float2 position)
         {
-            return this.AddAgent(
-                position,
-                this.defaultAgent.neighborDist,
-                this.defaultAgent.maxNeighbors,
-                this.defaultAgent.timeHorizon,
-                this.defaultAgent.timeHorizonObst,
-                this.defaultAgent.radius,
-                this.defaultAgent.maxSpeed,
-                this.defaultAgent.velocity);
+            unsafe
+            {
+                fixed (Agent* defaultAgentPrt = &this.defaultAgent)
+                {
+                    return this.AddAgent(
+                        position,
+                        defaultAgentPrt->neighborDist,
+                        defaultAgentPrt->maxNeighbors,
+                        defaultAgentPrt->timeHorizon,
+                        defaultAgentPrt->timeHorizonObst,
+                        defaultAgentPrt->radius,
+                        defaultAgentPrt->maxSpeed,
+                        defaultAgentPrt->velocity);
+                }
+            }
         }
 
         /// <summary>
@@ -140,49 +146,47 @@ namespace RVO
             var obstacleId = ++this.sid;
             var startIndex = this.obstacles.Length;
 
-            for (var i = 0; i < vertices.Count; ++i)
+            unsafe
             {
-                var obstacleIndex = this.NewObstacleVert(vertices[i], obstacleId);
-                Obstacle obstacle = this.obstacles[obstacleIndex];
-
-                var isFirst = i == 0;
-                var isLast = i == vertices.Count - 1;
-
-                if (!isFirst)
+                for (var i = 0; i < vertices.Count; ++i)
                 {
-                    obstacle.previousIndex = obstacleIndex - 1;
-                    Obstacle previous = this.obstacles[obstacle.previousIndex];
-                    previous.nextIndex = obstacleIndex;
+                    // NewObstacleVert will cause this.obstacles change
+                    // so the old obstaclesPtr value became invalid and we have to assign again.
+                    Obstacle* obstacle = this.NewObstacleVert(vertices[i], obstacleId);
+                    var obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
+                    var obstacleIndex = obstacle->id;
 
-                    this.obstacles[obstacleIndex] = obstacle;
-                    this.obstacles[obstacle.previousIndex] = previous;
+                    var isFirst = i == 0;
+                    var isLast = i == vertices.Count - 1;
+
+                    if (!isFirst)
+                    {
+                        obstacle->previousIndex = obstacleIndex - 1;
+                        Obstacle* previous = obstaclesPtr + obstacle->previousIndex;
+                        previous->nextIndex = obstacleIndex;
+                    }
+
+                    if (isLast)
+                    {
+                        obstacle->nextIndex = startIndex;
+                        Obstacle* next = obstaclesPtr + startIndex;
+                        next->previousIndex = startIndex;
+                    }
+
+                    obstacle->direction = math.normalize(vertices[isLast ? 0 : i + 1] - vertices[i]);
+
+                    if (vertices.Count == 2)
+                    {
+                        obstacle->convex = true;
+                    }
+                    else
+                    {
+                        obstacle->convex = RVOMath.LeftOf(
+                            vertices[isFirst ? vertices.Count - 1 : i - 1],
+                            vertices[i],
+                            vertices[isLast ? 0 : i + 1]) >= 0f;
+                    }
                 }
-
-                if (isLast)
-                {
-                    obstacle.nextIndex = startIndex;
-                    Obstacle next = this.obstacles[startIndex];
-                    next.previousIndex = startIndex;
-
-                    this.obstacles[obstacleIndex] = obstacle;
-                    this.obstacles[startIndex] = next;
-                }
-
-                obstacle.direction = math.normalize(vertices[isLast ? 0 : i + 1] - vertices[i]);
-
-                if (vertices.Count == 2)
-                {
-                    obstacle.convex = true;
-                }
-                else
-                {
-                    obstacle.convex = RVOMath.LeftOf(
-                        vertices[isFirst ? vertices.Count - 1 : i - 1],
-                        vertices[i],
-                        vertices[isLast ? 0 : i + 1]) >= 0f;
-                }
-
-                this.obstacles[obstacleIndex] = obstacle;
             }
 
             this.obstacleTreeDirty = true;
@@ -376,9 +380,9 @@ namespace RVO
             var globalTimeRef = new NativeReference<float>(this.globalTime, Allocator.TempJob);
             var updateTimeJob = new UpdateTimeJob(globalTimeRef, this.timeStep);
             JobHandle jobHandle3 = updateTimeJob.Schedule(jobHandle2);
-            jobHandle3.Complete();
 
-            this.globalTime = globalTimeRef.Value;
+            // jobHandle3.Complete();
+            // this.globalTime = globalTimeRef.Value;
             globalTimeRef.Dispose(jobHandle3);
 
             this.jobHandle = jobHandle3;
@@ -662,8 +666,16 @@ namespace RVO
             this.EnsureAgentTree();
             this.EnsureObstacleTree();
 
-            return this.kdTree.AsParallelReader()
-                .QueryVisibility(point1, point2, radius, this.obstacles);
+            unsafe
+            {
+                return this.kdTree.AsParallelReader()
+                    .QueryVisibility(
+                    point1,
+                    point2,
+                    radius,
+                    (Obstacle*)this.obstacles.GetUnsafeReadOnlyPtr(),
+                    this.obstacles.Length);
+            }
         }
 
         /// <summary>
@@ -901,9 +913,13 @@ namespace RVO
 
             NativeArray<Agent> agentsAsArray = this.agents;
 
-            var buffer = new NativeList<Agent>(Allocator.Temp);
+            var buffer = new UnsafeList<Agent>(8, Allocator.Temp);
             this.kdTree.AsParallelReader()
-                .QueryAgentTree(in point, in radius, in agentsAsArray, ref buffer);
+                .QueryAgentTree(
+                in point,
+                in radius,
+                in agentsAsArray,
+                ref buffer);
 
             result.Clear();
             foreach (var a in buffer)
@@ -931,30 +947,33 @@ namespace RVO
         /// <param name="end">The ending agent k-D tree node index.</param>
         /// <param name="nodeIndex">The current agent k-D tree node index.</param>
         /// <param name="agents">The array that holds the agent data.</param>
-        private static void BuildAgentTreeRecursive(
+        /// <param name="agentsLength">The length for array <paramref name="agents"/>.</param>
+        private static unsafe void BuildAgentTreeRecursive(
             ref KdTree kdTree,
             int begin,
             int end,
             int nodeIndex,
-            in NativeArray<Agent>.ReadOnly agents)
+            Agent* agents,
+            int agentsLength)
         {
-            KdTree.AgentTreeNode node = kdTree.agentTree[nodeIndex];
-            node.begin = begin;
-            node.end = end;
-            Agent agentBegin = agents[kdTree.agentIds[begin]];
-            node.minX = node.maxX = agentBegin.position.x;
-            node.minY = node.maxY = agentBegin.position.y;
+            var agentTreePtr = (KdTree.AgentTreeNode*)kdTree.agentTree.GetUnsafePtr();
+            var agentIdsPtr = (int*)kdTree.agentIds.GetUnsafePtr();
+
+            KdTree.AgentTreeNode* node = agentTreePtr + nodeIndex;
+            node->begin = begin;
+            node->end = end;
+            Agent* agentBegin = agents + agentIdsPtr[begin];
+            node->minX = node->maxX = agentBegin->position.x;
+            node->minY = node->maxY = agentBegin->position.y;
 
             for (var i = begin + 1; i < end; ++i)
             {
-                Agent agentI = agents[kdTree.agentIds[i]];
-                node.maxX = math.max(node.maxX, agentI.position.x);
-                node.minX = math.min(node.minX, agentI.position.x);
-                node.maxY = math.max(node.maxY, agentI.position.y);
-                node.minY = math.min(node.minY, agentI.position.y);
+                Agent* agentI = agents + agentIdsPtr[i];
+                node->maxX = math.max(node->maxX, agentI->position.x);
+                node->minX = math.min(node->minX, agentI->position.x);
+                node->maxY = math.max(node->maxY, agentI->position.y);
+                node->minY = math.min(node->minY, agentI->position.y);
             }
-
-            kdTree.agentTree[nodeIndex] = node;
 
             if (end - begin <= KdTree.MaxLeafSize)
             {
@@ -962,12 +981,11 @@ namespace RVO
             }
 
             // No leaf node.
-            var isVertical = kdTree.agentTree[nodeIndex].maxX - kdTree.agentTree[nodeIndex].minX
-                             > kdTree.agentTree[nodeIndex].maxY - kdTree.agentTree[nodeIndex].minY;
-            var splitValue = 0.5f *
-                             (isVertical
-                                 ? kdTree.agentTree[nodeIndex].maxX + kdTree.agentTree[nodeIndex].minX
-                                 : kdTree.agentTree[nodeIndex].maxY + kdTree.agentTree[nodeIndex].minY);
+            var isVertical = node->maxX - node->minX
+                             > node->maxY - node->minY;
+            var splitValue = 0.5f * (isVertical
+                                 ? node->maxX + node->minX
+                                 : node->maxY + node->minY);
 
             var left = begin;
             var right = end;
@@ -976,9 +994,9 @@ namespace RVO
             {
                 while (true)
                 {
-                    Agent agentLeft = agents[kdTree.agentIds[left]];
+                    Agent* agentLeft = agents + agentIdsPtr[left];
                     if (left < right
-                        && (isVertical ? agentLeft.position.x : agentLeft.position.y) < splitValue)
+                        && (isVertical ? agentLeft->position.x : agentLeft->position.y) < splitValue)
                     {
                         ++left;
                     }
@@ -990,9 +1008,9 @@ namespace RVO
 
                 while (true)
                 {
-                    Agent agentRight = agents[kdTree.agentIds[right - 1]];
+                    Agent* agentRight = agents + agentIdsPtr[right - 1];
                     if (right > left
-                        && (isVertical ? agentRight.position.x : agentRight.position.y) >= splitValue)
+                        && (isVertical ? agentRight->position.x : agentRight->position.y) >= splitValue)
                     {
                         --right;
                     }
@@ -1007,9 +1025,9 @@ namespace RVO
                     continue;
                 }
 
-                var tempAgentIndex = kdTree.agentIds[left];
-                kdTree.agentIds[left] = kdTree.agentIds[right - 1];
-                kdTree.agentIds[right - 1] = tempAgentIndex;
+                var tempAgentIndex = agentIdsPtr[left];
+                agentIdsPtr[left] = agentIdsPtr[right - 1];
+                agentIdsPtr[right - 1] = tempAgentIndex;
                 ++left;
                 --right;
             }
@@ -1022,12 +1040,11 @@ namespace RVO
                 ++left;
             }
 
-            node.left = nodeIndex + 1;
-            node.right = nodeIndex + (2 * leftSize);
-            kdTree.agentTree[nodeIndex] = node;
+            node->left = nodeIndex + 1;
+            node->right = nodeIndex + (2 * leftSize);
 
-            BuildAgentTreeRecursive(ref kdTree, begin, left, kdTree.agentTree[nodeIndex].left, agents);
-            BuildAgentTreeRecursive(ref kdTree, left, end, kdTree.agentTree[nodeIndex].right, agents);
+            BuildAgentTreeRecursive(ref kdTree, begin, left, node->left, agents, agentsLength);
+            BuildAgentTreeRecursive(ref kdTree, left, end, node->right, agents, agentsLength);
         }
 
         private static void EnsureTreeCapacity(ref KdTree kdTree, int agentCount)
@@ -1056,24 +1073,26 @@ namespace RVO
         /// </summary>
         /// <param name="kdTree">The k-D Tree.</param>
         /// <param name="agents">The array that holds the agent data.</param>
-        private static void BuildAgentTree(
+        /// <param name="agentsLength">The length for array <paramref name="agents"/>.</param>
+        private static unsafe void BuildAgentTree(
             ref KdTree kdTree,
-            in NativeArray<Agent>.ReadOnly agents)
+            Agent* agents,
+            int agentsLength)
         {
             if (kdTree.agentIds.Length == 0)
             {
                 return;
             }
 
-            for (var i = 0; i < agents.Length; i++)
+            for (var i = 0; i < agentsLength; i++)
             {
                 kdTree.agentIds[i] = i;
             }
 
-            BuildAgentTreeRecursive(ref kdTree, 0, kdTree.agentIds.Length, 0, agents);
+            BuildAgentTreeRecursive(ref kdTree, 0, kdTree.agentIds.Length, 0, agents, agentsLength);
         }
 
-        private int NewObstacleVert(float2 point, int obstacleId)
+        private unsafe Obstacle* NewObstacleVert(float2 point, int obstacleId)
         {
             var newIndex = this.obstacles.Length;
             var obstacleVert = new Obstacle(newIndex, point, obstacleId);
@@ -1081,16 +1100,17 @@ namespace RVO
 
             this.obstacleIndexLookup.Add(obstacleId, newIndex);
 
-            return newIndex;
+            return (Obstacle*)this.obstacles.GetUnsafePtr() + newIndex;
         }
 
-        private void EnsureAgentTree()
+        private unsafe void EnsureAgentTree()
         {
             if (this.agentTreeDirty)
             {
                 EnsureTreeCapacity(ref this.kdTree, this.agents.Length);
-                var agentsReadonly = this.agents.AsParallelReader();
-                BuildAgentTree(ref this.kdTree, in agentsReadonly);
+                var agentsReadonly = (Agent*)this.agents.GetUnsafeReadOnlyPtr();
+                var agentsLength = this.agents.Length;
+                BuildAgentTree(ref this.kdTree, agentsReadonly, agentsLength);
                 this.agentTreeDirty = false;
             }
         }
@@ -1136,7 +1156,7 @@ namespace RVO
         /// <param name="velocity">The initial two-dimensional linear velocity of
         /// this agent.</param>
         /// <returns>The number of the agent.</returns>
-        private int AddAgent(
+        private unsafe int AddAgent(
             float2 position,
             float neighborDist,
             int maxNeighbors,
@@ -1146,19 +1166,17 @@ namespace RVO
             float maxSpeed,
             float2 velocity)
         {
-            var agentIndex = this.NewAgent();
-            Agent agent = this.agents[agentIndex];
-            agent.maxNeighbors = maxNeighbors;
-            agent.maxSpeed = maxSpeed;
-            agent.neighborDist = neighborDist;
-            agent.position = position;
-            agent.radius = radius;
-            agent.timeHorizon = timeHorizon;
-            agent.timeHorizonObst = timeHorizonObst;
-            agent.velocity = velocity;
-            this.agents[agentIndex] = agent;
+            Agent* agent = this.NewAgent();
+            agent->maxNeighbors = maxNeighbors;
+            agent->maxSpeed = maxSpeed;
+            agent->neighborDist = neighborDist;
+            agent->position = position;
+            agent->radius = radius;
+            agent->timeHorizon = timeHorizon;
+            agent->timeHorizonObst = timeHorizonObst;
+            agent->velocity = velocity;
 
-            return agent.id;
+            return agent->id;
         }
 
         /// <summary>
@@ -1203,7 +1221,7 @@ namespace RVO
 
             var nodeIndex = kdTreeToBuild.NewObstacleTreeNode();
             var obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
-            KdTree.ObstacleTreeNode* node = &obstacleTreeNodesPtr[nodeIndex];
+            KdTree.ObstacleTreeNode* node = obstacleTreeNodesPtr + nodeIndex;
             this.kdTree = kdTreeToBuild;
 
             var optimalSplit = 0;
@@ -1218,9 +1236,9 @@ namespace RVO
                 var rightSize = 0;
 
                 var obstacleI1Index = obstacleIds[i];
-                Obstacle* obstacleI1 = &obstaclesPtr[obstacleI1Index];
+                Obstacle* obstacleI1 = obstaclesPtr + obstacleI1Index;
                 var obstacleI2Index = obstacleI1->nextIndex;
-                Obstacle* obstacleI2 = &obstaclesPtr[obstacleI2Index];
+                Obstacle* obstacleI2 = obstaclesPtr + obstacleI2Index;
 
                 // Compute optimal split node.
                 for (var j = 0; j < obstacleLength; ++j)
@@ -1231,9 +1249,9 @@ namespace RVO
                     }
 
                     var obstacleJ1Index = obstacleIds[j];
-                    Obstacle* obstacleJ1 = &obstaclesPtr[obstacleJ1Index];
+                    Obstacle* obstacleJ1 = obstaclesPtr + obstacleJ1Index;
                     var obstacleJ2Index = obstacleJ1->nextIndex;
-                    Obstacle* obstacleJ2 = &obstaclesPtr[obstacleJ2Index];
+                    Obstacle* obstacleJ2 = obstaclesPtr + obstacleJ2Index;
 
                     var j1LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
                     var j2LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
@@ -1297,9 +1315,9 @@ namespace RVO
                 var i = optimalSplit;
 
                 var obstacleI1Index = obstacleIds[i];
-                Obstacle* obstacleI1 = &obstaclesPtr[obstacleI1Index];
+                Obstacle* obstacleI1 = obstaclesPtr + obstacleI1Index;
                 var obstacleI2Index = obstacleI1->nextIndex;
-                Obstacle* obstacleI2 = &obstaclesPtr[obstacleI2Index];
+                Obstacle* obstacleI2 = obstaclesPtr + obstacleI2Index;
 
                 for (var j = 0; j < obstacleLength; ++j)
                 {
@@ -1309,9 +1327,9 @@ namespace RVO
                     }
 
                     var obstacleJ1Index = obstacleIds[j];
-                    Obstacle* obstacleJ1 = &obstaclesPtr[obstacleJ1Index];
+                    Obstacle* obstacleJ1 = obstaclesPtr + obstacleJ1Index;
                     var obstacleJ2Index = obstacleJ1->nextIndex;
-                    Obstacle* obstacleJ2 = &obstaclesPtr[obstacleJ2Index];
+                    Obstacle* obstacleJ2 = obstaclesPtr + obstacleJ2Index;
 
                     var j1LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ1->point);
                     var j2LeftOfI = RVOMath.LeftOf(obstacleI1->point, obstacleI2->point, obstacleJ2->point);
@@ -1335,19 +1353,16 @@ namespace RVO
 
                         // NewObstacleVert will cause this.obstacles change
                         // so the old obstaclesPtr value became invalid and we have to assign again.
-                        var newObstacleIndex = this.NewObstacleVert(splitPoint, obstacleJ1->obstacle);
+                        Obstacle* newObstacle = this.NewObstacleVert(splitPoint, obstacleJ1->obstacle);
                         obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
-                        Obstacle* newObstacle = &obstaclesPtr[newObstacleIndex];
+                        var newObstacleIndex = newObstacle->id;
                         newObstacle->previousIndex = obstacleJ1Index;
                         newObstacle->nextIndex = obstacleJ2Index;
                         newObstacle->convex = true;
                         newObstacle->direction = obstacleJ1->direction;
-                        obstaclesPtr[newObstacleIndex] = *newObstacle;
 
                         obstacleJ1->nextIndex = newObstacleIndex;
                         obstacleJ2->previousIndex = newObstacleIndex;
-                        obstaclesPtr[obstacleJ1Index] = *obstacleJ1;
-                        obstaclesPtr[obstacleJ2Index] = *obstacleJ2;
 
                         if (j1LeftOfI > 0f)
                         {
@@ -1363,7 +1378,6 @@ namespace RVO
                 }
 
                 node->obstacleIndex = obstacleI1Index;
-                obstacleTreeNodesPtr[nodeIndex] = *node;
 
                 var leftIndex = this.BuildObstacleTreeRecursive(
                     ref kdTreeToBuild,
@@ -1373,9 +1387,8 @@ namespace RVO
                 // NewObstacleTreeNode() in BuildObstacleTreeRecursive() will cause obstacleTreeNodes change
                 // so the old obstacleTreeNodesPtr value became invalid and we have to assign again.
                 obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
-                node = &obstacleTreeNodesPtr[nodeIndex];
+                node = obstacleTreeNodesPtr + nodeIndex;
                 node->leftIndex = leftIndex;
-                obstacleTreeNodesPtr[nodeIndex] = *node;
 
                 var rightIndex = this.BuildObstacleTreeRecursive(
                     ref kdTreeToBuild,
@@ -1385,9 +1398,8 @@ namespace RVO
                 // NewObstacleTreeNode() in BuildObstacleTreeRecursive() will cause obstacleTreeNodes change
                 // so the old obstacleTreeNodesPtr value became invalid and we have to assign again.
                 obstacleTreeNodesPtr = (KdTree.ObstacleTreeNode*)kdTreeToBuild.obstacleTreeNodes.GetUnsafePtr();
-                node = &obstacleTreeNodesPtr[nodeIndex];
+                node = obstacleTreeNodesPtr + nodeIndex;
                 node->rightIndex = rightIndex;
-                obstacleTreeNodesPtr[nodeIndex] = *node;
 
                 leftObstacles.Dispose();
                 rightObstacles.Dispose();
@@ -1419,7 +1431,7 @@ namespace RVO
             }
         }
 
-        private int NewAgent()
+        private unsafe Agent* NewAgent()
         {
             var newIndex = this.agents.Length;
             var agentId = ++this.sid;
@@ -1430,13 +1442,14 @@ namespace RVO
 
             this.agentTreeDirty = true;
 
-            return newIndex;
+            return (Agent*)this.agents.GetUnsafePtr() + newIndex;
         }
 
         [BurstCompile]
         private struct BuildJob : IJob
         {
             private KdTree kdTree;
+            [ReadOnly]
             private NativeArray<Agent>.ReadOnly agents;
 
             public BuildJob(KdTree kdTree, NativeArray<Agent>.ReadOnly agents)
@@ -1446,9 +1459,9 @@ namespace RVO
                 this.agents = agents;
             }
 
-            public void Execute()
+            public unsafe void Execute()
             {
-                BuildAgentTree(ref this.kdTree, in this.agents);
+                BuildAgentTree(ref this.kdTree, (Agent*)this.agents.GetUnsafeReadOnlyPtr(), this.agents.Length);
             }
         }
 
@@ -1480,27 +1493,35 @@ namespace RVO
                 this.agentResult = agentResult;
             }
 
-            public void Execute(int index)
+            public unsafe void Execute(int index)
             {
-                Agent agent = this.agents[index];
+                var agentNeighbors = new UnsafeList<Agent.Pair>(8, Allocator.Temp);
+                var obstacleNeighbors = new UnsafeList<Agent.Pair>(8, Allocator.Temp);
 
-                var agentNeighbors = new NativeList<Agent.Pair>(Allocator.Temp);
-                var obstacleNeighbors = new NativeList<Agent.Pair>(Allocator.Temp);
+                var agentsPtr = (Agent*)this.agents.GetUnsafeReadOnlyPtr();
+                var obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafeReadOnlyPtr();
+                var agentsLength = this.agents.Length;
+                var obstaclesLength = this.obstacles.Length;
+                Agent* agent = agentsPtr + index;
 
-                agent.ComputeNeighbors(
+                agent->ComputeNeighbors(
                     in index,
                     in this.kdTree,
-                    in this.agents,
-                    in this.obstacles,
+                    agentsPtr,
+                    agentsLength,
+                    obstaclesPtr,
+                    obstaclesLength,
                     ref agentNeighbors,
                     ref obstacleNeighbors);
-                agent.ComputeNewVelocity(
+                agent->ComputeNewVelocity(
                     this.timeStep,
-                    in this.agents,
-                    in this.obstacles,
+                    agentsPtr,
+                    agentsLength,
+                    obstaclesPtr,
+                    obstaclesLength,
                     ref agentNeighbors,
                     ref obstacleNeighbors);
-                this.agentResult[index] = agent.newVelocity;
+                this.agentResult[index] = agent->newVelocity;
 
                 agentNeighbors.Dispose();
                 obstacleNeighbors.Dispose();
