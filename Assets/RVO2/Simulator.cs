@@ -376,16 +376,8 @@ namespace RVO
             JobHandle jobHandle2 = updateJob.Schedule(arrayLength, innerLoop, jobHandle1);
             agentResult.Dispose(jobHandle2);
 
-            // job3
-            var globalTimeRef = new NativeReference<float>(this.globalTime, Allocator.TempJob);
-            var updateTimeJob = new UpdateTimeJob(globalTimeRef, this.timeStep);
-            JobHandle jobHandle3 = updateTimeJob.Schedule(jobHandle2);
-
-            // jobHandle3.Complete();
-            // this.globalTime = globalTimeRef.Value;
-            globalTimeRef.Dispose(jobHandle3);
-
-            this.jobHandle = jobHandle3;
+            this.jobHandle = jobHandle2;
+            this.globalTime += this.timeStep;
         }
 
         /// <summary>
@@ -1553,24 +1545,6 @@ namespace RVO
                 agent.newVelocity = this.agentResult[index];
                 agent.Update(this.timeStep);
                 this.agents[index] = agent;
-            }
-        }
-
-        private struct UpdateTimeJob : IJob
-        {
-            private readonly float timeStep;
-            private NativeReference<float> globalTime;
-
-            public UpdateTimeJob(NativeReference<float> globalTime, float timeStep)
-                : this()
-            {
-                this.globalTime = globalTime;
-                this.timeStep = timeStep;
-            }
-
-            public void Execute()
-            {
-                this.globalTime.Value += this.timeStep;
             }
         }
     }

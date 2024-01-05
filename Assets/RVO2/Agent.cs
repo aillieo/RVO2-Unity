@@ -178,9 +178,9 @@ namespace RVO
                     // Collision with left vertex. Ignore if non-convex.
                     if (obstacle1->convex)
                     {
-                        Line line;
-                        line.point = new float2(0f, 0f);
-                        line.direction = math.normalize(new float2(-relativePosition1.y, relativePosition1.x));
+                        var line = new Line(
+                            new float2(0f, 0f),
+                            math.normalize(new float2(-relativePosition1.y, relativePosition1.x)));
                         orcaLines.Add(line);
                     }
 
@@ -192,9 +192,9 @@ namespace RVO
                     // it will be taken care of by neighboring obstacle.
                     if (obstacle2->convex && RVOMath.Det(relativePosition2, obstacle2->direction) >= 0f)
                     {
-                        Line line;
-                        line.point = new float2(0f, 0f);
-                        line.direction = math.normalize(new float2(-relativePosition2.y, relativePosition2.x));
+                        var line = new Line(
+                            new float2(0f, 0f),
+                            math.normalize(new float2(-relativePosition2.y, relativePosition2.x)));
                         orcaLines.Add(line);
                     }
 
@@ -203,9 +203,9 @@ namespace RVO
                 else if (s >= 0f && s <= 1f && distSqLine <= radiusSq)
                 {
                     // Collision with obstacle segment.
-                    Line line;
-                    line.point = new float2(0f, 0f);
-                    line.direction = -obstacle1->direction;
+                    var line = new Line(
+                        new float2(0f, 0f),
+                        -obstacle1->direction);
                     orcaLines.Add(line);
 
                     continue;
@@ -335,9 +335,9 @@ namespace RVO
                     // Project on left cut-off circle.
                     float2 unitW = math.normalize(this.velocity - leftCutOff);
 
-                    Line line;
-                    line.direction = new float2(unitW.y, -unitW.x);
-                    line.point = leftCutOff + (dist * unitW);
+                    var line = new Line(
+                        leftCutOff + (dist * unitW),
+                        new float2(unitW.y, -unitW.x));
                     orcaLines.Add(line);
 
                     continue;
@@ -347,9 +347,9 @@ namespace RVO
                     // Project on right cut-off circle.
                     float2 unitW = math.normalize(this.velocity - rightCutOff);
 
-                    Line line;
-                    line.direction = new float2(unitW.y, -unitW.x);
-                    line.point = rightCutOff + (dist * unitW);
+                    var line = new Line(
+                        rightCutOff + (dist * unitW),
+                        new float2(unitW.y, -unitW.x));
                     orcaLines.Add(line);
 
                     continue;
@@ -368,9 +368,10 @@ namespace RVO
                 if (distSqCutoff <= distSqLeft && distSqCutoff <= distSqRight)
                 {
                     // Project on cut-off line.
-                    Line line;
-                    line.direction = -obstacle1->direction;
-                    line.point = leftCutOff + (dist * new float2(-line.direction.y, line.direction.x));
+                    var direction = -obstacle1->direction;
+                    var line = new Line(
+                        leftCutOff + (dist * new float2(-direction.y, direction.x)),
+                        direction);
                     orcaLines.Add(line);
 
                     continue;
@@ -384,9 +385,10 @@ namespace RVO
                         continue;
                     }
 
-                    Line line;
-                    line.direction = leftLegDirection;
-                    line.point = leftCutOff + (dist * new float2(-line.direction.y, line.direction.x));
+                    var direction = leftLegDirection;
+                    var line = new Line(
+                        leftCutOff + (dist * new float2(-direction.y, direction.x)),
+                        direction);
                     orcaLines.Add(line);
 
                     continue;
@@ -398,9 +400,10 @@ namespace RVO
                     continue;
                 }
 
-                Line line0;
-                line0.direction = -rightLegDirection;
-                line0.point = rightCutOff + (dist * new float2(-line0.direction.y, line0.direction.x));
+                var direction0 = -rightLegDirection;
+                var line0 = new Line(
+                    rightCutOff + (dist * new float2(-direction0.y, direction0.x)),
+                    direction0);
                 orcaLines.Add(line0);
             }
 
@@ -420,7 +423,8 @@ namespace RVO
                 var combinedRadius = this.radius + other->radius;
                 var combinedRadiusSq = RVOMath.Square(combinedRadius);
 
-                Line line;
+                float2 point;
+                float2 direction;
                 float2 u;
 
                 if (distSq > combinedRadiusSq)
@@ -438,7 +442,7 @@ namespace RVO
                         var wLength = math.sqrt(wLengthSq);
                         float2 unitW = w / wLength;
 
-                        line.direction = new float2(unitW.y, -unitW.x);
+                        direction = new float2(unitW.y, -unitW.x);
                         u = ((combinedRadius * invTimeHorizon) - wLength) * unitW;
                     }
                     else
@@ -449,7 +453,7 @@ namespace RVO
                         if (RVOMath.Det(relativePosition, w) > 0f)
                         {
                             // Project on left leg.
-                            line.direction = new float2(
+                            direction = new float2(
                                 (relativePosition.x * leg) - (relativePosition.y * combinedRadius),
                                 (relativePosition.x * combinedRadius) + (relativePosition.y * leg))
                                 / distSq;
@@ -457,14 +461,14 @@ namespace RVO
                         else
                         {
                             // Project on right leg.
-                            line.direction = -new float2(
+                            direction = -new float2(
                                 (relativePosition.x * leg) + (relativePosition.y * combinedRadius),
                                 (-relativePosition.x * combinedRadius) + (relativePosition.y * leg))
                                 / distSq;
                         }
 
-                        var dotProduct2 = math.dot(relativeVelocity, line.direction);
-                        u = (dotProduct2 * line.direction) - relativeVelocity;
+                        var dotProduct2 = math.dot(relativeVelocity, direction);
+                        u = (dotProduct2 * direction) - relativeVelocity;
                     }
                 }
                 else
@@ -478,11 +482,12 @@ namespace RVO
                     var wLength = math.length(w);
                     float2 unitW = w / wLength;
 
-                    line.direction = new float2(unitW.y, -unitW.x);
+                    direction = new float2(unitW.y, -unitW.x);
                     u = ((combinedRadius * invTimeStep) - wLength) * unitW;
                 }
 
-                line.point = this.velocity + (0.5f * u);
+                point = this.velocity + (0.5f * u);
+                var line = new Line(point, direction);
                 orcaLines.Add(line);
             }
 
@@ -807,7 +812,8 @@ namespace RVO
                 for (var j = numObstLines; j < i; ++j)
                 {
                     Line* lineJ = lines + j;
-                    Line line;
+                    float2 point;
+                    float2 direction;
 
                     var determinant = RVOMath.Det(lineI->direction, lineJ->direction);
 
@@ -822,16 +828,17 @@ namespace RVO
                         else
                         {
                             // Line i and line j point in opposite direction.
-                            line.point = 0.5f * (lineI->point + lineJ->point);
+                            point = 0.5f * (lineI->point + lineJ->point);
                         }
                     }
                     else
                     {
-                        line.point = lineI->point
+                        point = lineI->point
                             + (RVOMath.Det(lineJ->direction, lineI->point - lineJ->point) / determinant * lineI->direction);
                     }
 
-                    line.direction = math.normalize(lineJ->direction - lineI->direction);
+                    direction = math.normalize(lineJ->direction - lineI->direction);
+                    var line = new Line(point, direction);
                     projLines.Add(line);
                 }
 

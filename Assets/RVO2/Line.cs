@@ -48,10 +48,21 @@ namespace RVO
     /// <summary>
     /// Defines a directed line.
     /// </summary>
-    internal struct Line : IEquatable<Line>
+    internal readonly struct Line : IEquatable<Line>
     {
-        internal float2 direction;
-        internal float2 point;
+        internal readonly float2 direction;
+        internal readonly float2 point;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Line"/> struct.
+        /// </summary>
+        /// <param name="point">Origin of the Line.</param>
+        /// <param name="direction">Direction of the Line.</param>
+        public Line(float2 point, float2 direction)
+        {
+            this.point = point;
+            this.direction = direction;
+        }
 
         /// <inheritdoc/>
         public bool Equals(Line other)
