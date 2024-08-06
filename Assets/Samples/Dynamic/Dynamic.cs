@@ -23,7 +23,7 @@ namespace RVO
         private CustomSampler sampler;
 
         private List<RepeatedTask> repeatedTasks;
-        private Dictionary<int, GoalAndColor> agentData;
+        private Dictionary<Agent, GoalAndColor> agentData;
         private List<int> obstacles;
 
         private void SetupScenario()
@@ -35,7 +35,7 @@ namespace RVO
             this.simulator.SetAgentDefaults(15f, 10, 5f, 5f, 2f, 0.5f, new float2(0f, 0f));
 
             this.repeatedTasks = new List<RepeatedTask>();
-            this.agentData = new Dictionary<int, GoalAndColor>();
+            this.agentData = new Dictionary<Agent, GoalAndColor>();
 
             // Agents spawning.
             for (var i = 0; i < 3; ++i)
@@ -159,8 +159,8 @@ namespace RVO
 
             foreach (var pair in this.agentData)
             {
-                var agentId = pair.Key;
-                float2 position = this.simulator.GetAgentPosition(agentId);
+                var agent = pair.Key;
+                float2 position = agent.position;
                 Gizmos.color = pair.Value.color;
                 Gizmos.DrawSphere((Vector2)position, 2);
             }
@@ -174,9 +174,9 @@ namespace RVO
             // (speed) in the direction of the goal.
             foreach (var pair in this.agentData)
             {
-                var agentId = pair.Key;
+                var agent = pair.Key;
                 var goal = pair.Value.goal;
-                float2 goalVector = goal - this.simulator.GetAgentPosition(agentId);
+                float2 goalVector = goal - agent.position;
 
                 if (math.lengthsq(goalVector) > 0.01f)
                 {
@@ -184,15 +184,13 @@ namespace RVO
                     goalVector *= 0.5f;
                 }
 
-                this.simulator.SetAgentPrefVelocity(agentId, goalVector);
+                agent.prefVelocity = goalVector;
 
                 // Perturb a little to avoid deadlocks due to perfect symmetry.
                 var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
                 var dist = (float)this.random.NextDouble() * 0.0001f;
 
-                this.simulator.SetAgentPrefVelocity(
-                    agentId,
-                    this.simulator.GetAgentPrefVelocity(agentId) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
+                    agent.prefVelocity += dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle));
             }
         }
 
@@ -262,9 +260,9 @@ namespace RVO
             private readonly float2 goal;
             private readonly Color color;
             private readonly Simulator simulator;
-            private readonly Dictionary<int, GoalAndColor> agentData;
+            private readonly Dictionary<Agent, GoalAndColor> agentData;
 
-            internal SpawnTask(float2 position, float2 goal, Color color, Simulator simulator, Dictionary<int, GoalAndColor> agentData)
+            internal SpawnTask(float2 position, float2 goal, Color color, Simulator simulator, Dictionary<Agent, GoalAndColor> agentData)
             {
                 this.position = position;
                 this.goal = goal;
@@ -285,10 +283,10 @@ namespace RVO
         private class AgentCleanupTask : RepeatedTask
         {
             private readonly Simulator simulator;
-            private readonly Dictionary<int, GoalAndColor> agentData;
-            private readonly List<int> buffer = new List<int>();
+            private readonly Dictionary<Agent, GoalAndColor> agentData;
+            private readonly List<Agent> buffer = new List<Agent>();
 
-            internal AgentCleanupTask(Simulator simulator, Dictionary<int, GoalAndColor> agentData)
+            internal AgentCleanupTask(Simulator simulator, Dictionary<Agent, GoalAndColor> agentData)
             {
                 this.simulator = simulator;
                 this.agentData = agentData;
@@ -300,17 +298,15 @@ namespace RVO
 
                 foreach (var pair in this.agentData)
                 {
-                    var agentId = pair.Key;
+                    var agent = pair.Key;
                     var goal = pair.Value.goal;
-                    if (math.lengthsq(
-                        this.simulator.GetAgentPosition(agentId) - goal)
-                            <= this.simulator.GetAgentRadius(agentId) * this.simulator.GetAgentRadius(agentId))
+                    if (math.lengthsq(agent.position - goal) <= agent.radius * agent.radius)
                     {
-                        this.buffer.Add(agentId);
+                        this.buffer.Add(agent);
+                        this.simulator.RemoveAgent(agent);
                     }
                 }
 
-                this.simulator.RemoveAgents(this.buffer);
 
                 this.simulator.EnsureCompleted();
 

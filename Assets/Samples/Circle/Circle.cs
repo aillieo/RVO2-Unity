@@ -57,7 +57,7 @@ namespace RVO
     internal class Circle : MonoBehaviour
     {
         // Store the goals of the agents.
-        private Dictionary<int, float2> goals;
+        private Dictionary<Agent, float2> goals;
 
         private Simulator simulator;
 
@@ -72,7 +72,7 @@ namespace RVO
 
         private void SetupScenario()
         {
-            this.goals = new Dictionary<int, float2>();
+            this.goals = new Dictionary<Agent, float2>();
 
             // Specify the global time step of the simulation.
             this.simulator.SetTimeStep(0.25f);
@@ -84,12 +84,12 @@ namespace RVO
             // goals on the opposite side of the environment.
             for (var i = 0; i < 250; ++i)
             {
-                var agentId = this.simulator.AddAgent(200f *
+                var agent = this.simulator.AddAgent(200f *
                     new float2(
                         (float)Math.Cos(i * 2f * Math.PI / 250f),
                         (float)Math.Sin(i * 2f * Math.PI / 250f)));
-                var goal = -this.simulator.GetAgentPosition(agentId);
-                this.goals.Add(agentId, goal);
+                var goal = -agent.position;
+                this.goals.Add(agent, goal);
             }
         }
 
@@ -104,8 +104,8 @@ namespace RVO
 
             foreach (var pair in this.goals)
             {
-                var agentId = pair.Key;
-                float2 position = this.simulator.GetAgentPosition(agentId);
+                var agent = pair.Key;
+                float2 position = agent.position;
                 Gizmos.DrawSphere((Vector2)position, 1.5f);
             }
         }
@@ -116,16 +116,16 @@ namespace RVO
             // (speed) in the direction of the goal.
             foreach (var pair in this.goals)
             {
-                var agentId = pair.Key;
+                var agent = pair.Key;
                 var goal = pair.Value;
-                float2 goalVector = goal - this.simulator.GetAgentPosition(agentId);
+                float2 goalVector = goal - agent.position;
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.SetAgentPrefVelocity(agentId, goalVector);
+                agent.prefVelocity = goalVector;
             }
         }
 
@@ -134,11 +134,9 @@ namespace RVO
             // Check if all agents have reached their goals.
             foreach (var pair in this.goals)
             {
-                var agentId = pair.Key;
+                var agent = pair.Key;
                 var goal = pair.Value;
-                if (math.lengthsq(
-                    this.simulator.GetAgentPosition(agentId) - goal)
-                        > this.simulator.GetAgentRadius(agentId) * this.simulator.GetAgentRadius(agentId))
+                if (math.lengthsq(agent.position - goal) > agent.radius * agent.radius)
                 {
                     return false;
                 }

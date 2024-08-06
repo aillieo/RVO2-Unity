@@ -22,7 +22,7 @@ namespace RVO
 
         private CustomSampler sampler;
 
-        private List<int> agents;
+        private List<Agent> agents;
         private List<DynamicObstacleData> obstacles;
         private int bounds;
 
@@ -43,22 +43,22 @@ namespace RVO
             this.simulator.SetAgentDefaults(15f, 10, 5f, 5f, 2f, 2f, new float2(0f, 0f));
 
             // Add agents, specifying their start position.
-            this.agents = new List<int>();
+            this.agents = new List<Agent>();
             for (var i = 0; i < 5; ++i)
             {
                 for (var j = 0; j < 5; ++j)
                 {
-                    var agentId = this.simulator.AddAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
-                    this.agents.Add(agentId);
+                    var agent = this.simulator.AddAgent(new float2(55f + (i * 10f), 55f + (j * 10f)));
+                    this.agents.Add(agent);
 
-                    agentId = this.simulator.AddAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
-                    this.agents.Add(agentId);
+                    agent = this.simulator.AddAgent(new float2(-55f - (i * 10f), 55f + (j * 10f)));
+                    this.agents.Add(agent);
 
-                    agentId = this.simulator.AddAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
-                    this.agents.Add(agentId);
+                    agent = this.simulator.AddAgent(new float2(55f + (i * 10f), -55f - (j * 10f)));
+                    this.agents.Add(agent);
 
-                    agentId = this.simulator.AddAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
-                    this.agents.Add(agentId);
+                    agent = this.simulator.AddAgent(new float2(-55f - (i * 10f), -55f - (j * 10f)));
+                    this.agents.Add(agent);
                 }
             }
 
@@ -160,6 +160,9 @@ namespace RVO
 
                     Gizmos.DrawLine((Vector2)p0, (Vector2)p1);
 
+                    Gizmos.DrawSphere((Vector2)p0, 1f);
+                    Gizmos.DrawSphere((Vector2)p1, 1f);
+
                     if (next == first)
                     {
                         break;
@@ -212,9 +215,9 @@ namespace RVO
                 }
             }
 
-            foreach (var agentId in this.agents)
+            foreach (var agent in this.agents)
             {
-                float2 position = this.simulator.GetAgentPosition(agentId);
+                float2 position = agent.position;
                 Gizmos.DrawSphere((Vector2)position, 2);
             }
         }
@@ -223,24 +226,22 @@ namespace RVO
         {
             // Set the preferred velocity to be a vector of unit magnitude
             // (speed) in the direction of the goal.
-            foreach (var agentId in this.agents)
+            foreach (var agent in this.agents)
             {
-                float2 goalVector = newGoal - this.simulator.GetAgentPosition(agentId);
+                float2 goalVector = newGoal - agent.position;
 
                 if (math.lengthsq(goalVector) > 1f)
                 {
                     goalVector = math.normalize(goalVector);
                 }
 
-                this.simulator.SetAgentPrefVelocity(agentId, goalVector);
+                agent.prefVelocity = goalVector;
 
                 // Perturb a little to avoid deadlocks due to perfect symmetry.
                 var angle = (float)this.random.NextDouble() * 2f * (float)Math.PI;
                 var dist = (float)this.random.NextDouble() * 0.0001f;
 
-                this.simulator.SetAgentPrefVelocity(
-                    agentId,
-                    this.simulator.GetAgentPrefVelocity(agentId) + (dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle))));
+                    agent.prefVelocity += dist * new float2((float)Math.Cos(angle), (float)Math.Sin(angle));
             }
         }
 
@@ -297,9 +298,10 @@ namespace RVO
                         if (selected.Count > 0)
                         {
                             var toRemove = selected[0];
-                            if (this.simulator.RemoveAgent(toRemove))
+                            if (this.simulator.TryGetAgent(toRemove, out var agent))
                             {
-                                this.agents.Remove(toRemove);
+                                this.simulator.RemoveAgent(toRemove);
+                                this.agents.Remove(agent);
                             }
                         }
                     }

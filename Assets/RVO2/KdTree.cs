@@ -146,11 +146,11 @@ namespace RVO
             /// <param name="agentsLength">The length for array <paramref name="agents"/>.</param>
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
             internal readonly unsafe void ComputeAgentNeighbors(
-                Agent* agent,
+                AgentData* agent,
                 ref float rangeSq,
-                Agent* agents,
+                AgentData* agents,
                 int agentsLength,
-                ref UnsafeList<Agent.Pair> agentNeighbors)
+                ref UnsafeList<AgentData.Pair> agentNeighbors)
             {
                 this.QueryAgentTreeRecursive(
                     agent,
@@ -170,11 +170,11 @@ namespace RVO
             /// <param name="obstaclesLength">The length for array <paramref name="obstacles"/>.</param>
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
             internal readonly unsafe void ComputeObstacleNeighbors(
-                Agent* agent,
+                AgentData* agent,
                 float rangeSq,
                 Obstacle* obstacles,
                 int obstaclesLength,
-                ref UnsafeList<Agent.Pair> obstacleNeighbors)
+                ref UnsafeList<AgentData.Pair> obstacleNeighbors)
             {
                 this.QueryObstacleTreeRecursive(
                     agent,
@@ -213,10 +213,10 @@ namespace RVO
             internal unsafe void QueryAgentTree(
                 in float2 position,
                 in float range,
-                in NativeArray<Agent> agents,
-                ref UnsafeList<Agent> result)
+                in NativeArray<AgentData> agents,
+                ref UnsafeList<AgentData> result)
             {
-                var agentsPtr = (Agent*)agents.GetUnsafePtr();
+                var agentsPtr = (AgentData*)agents.GetUnsafePtr();
                 var agentsLength = agents.Length;
 
                 if (agents.Length > 0)
@@ -241,12 +241,12 @@ namespace RVO
             /// <param name="agentsLength">The length for array <paramref name="agents"/>.</param>
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
             private readonly unsafe void QueryAgentTreeRecursive(
-                Agent* agent,
+                AgentData* agent,
                 ref float rangeSq,
                 int node,
-                Agent* agents,
+                AgentData* agents,
                 int agentsLength,
-                ref UnsafeList<Agent.Pair> agentNeighbors)
+                ref UnsafeList<AgentData.Pair> agentNeighbors)
             {
                 var agentTreePtr = (AgentTreeNode*)this.agentTree.GetUnsafeReadOnlyPtr();
                 AgentTreeNode* agentTreeNode = agentTreePtr + node;
@@ -338,12 +338,12 @@ namespace RVO
             /// <param name="obstaclesLength">The length for array <paramref name="obstacles"/>.</param>
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
             private readonly unsafe void QueryObstacleTreeRecursive(
-                Agent* agent,
+                AgentData* agent,
                 float rangeSq,
                 int nodeIndex,
                 Obstacle* obstacles,
                 int obstaclesLength,
-                ref UnsafeList<Agent.Pair> obstacleNeighbors)
+                ref UnsafeList<AgentData.Pair> obstacleNeighbors)
             {
                 var obstacleTreeNodesPtr = (ObstacleTreeNode*)this.obstacleTreeNodes.GetUnsafeReadOnlyPtr();
 
@@ -477,9 +477,9 @@ namespace RVO
                 int nodeIndex,
                 in float2 position,
                 in float range,
-                Agent* agents,
+                AgentData* agents,
                 in int agentsLength,
-                ref UnsafeList<Agent> result)
+                ref UnsafeList<AgentData> result)
             {
                 var agentTreePtr = (AgentTreeNode*)this.agentTree.GetUnsafeReadOnlyPtr();
                 AgentTreeNode* node = agentTreePtr + nodeIndex;

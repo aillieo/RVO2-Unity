@@ -27,8 +27,8 @@ namespace RVO
             this ref NativeParallelMultiHashMap<TKey, TValue> hashMap,
             in TKey key,
             in TValue value)
-            where TKey : struct, IEquatable<TKey>
-            where TValue : struct, IEquatable<TValue>
+            where TKey : unmanaged, IEquatable<TKey>
+            where TValue : unmanaged, IEquatable<TValue>
         {
             if (hashMap.TryGetFirstValue(key, out TValue result, out NativeParallelMultiHashMapIterator<TKey> it))
             {
@@ -64,8 +64,8 @@ namespace RVO
             this ref NativeParallelMultiHashMap<TKey, TValue> hashMap,
             in TKey key,
             in TValue value)
-            where TKey : struct, IEquatable<TKey>
-            where TValue : struct, IEquatable<TValue>
+            where TKey : unmanaged, IEquatable<TKey>
+            where TValue : unmanaged, IEquatable<TValue>
         {
             var remove = 0;
 
@@ -105,8 +105,8 @@ namespace RVO
             in TKey key,
             in TValue value,
             in TValue newValue)
-            where TKey : struct, IEquatable<TKey>
-            where TValue : struct, IEquatable<TValue>
+            where TKey : unmanaged, IEquatable<TKey>
+            where TValue : unmanaged, IEquatable<TValue>
         {
             if (hashMap.TryGetFirstValue(key, out TValue result, out NativeParallelMultiHashMapIterator<TKey> it))
             {
@@ -144,8 +144,8 @@ namespace RVO
             in TKey key,
             in TValue value,
             in TValue newValue)
-            where TKey : struct, IEquatable<TKey>
-            where TValue : struct, IEquatable<TValue>
+            where TKey : unmanaged, IEquatable<TKey>
+            where TValue : unmanaged, IEquatable<TValue>
         {
             var remove = 0;
 
@@ -182,7 +182,7 @@ namespace RVO
             this ref NativeParallelMultiHashMap<TKey, TValue> hashMap,
             in TKey key,
             ref NativeList<TValue> toFill)
-            where TKey : struct, IEquatable<TKey>
+            where TKey : unmanaged, IEquatable<TKey>
             where TValue : unmanaged, IEquatable<TValue>
         {
             if (!toFill.IsCreated)
