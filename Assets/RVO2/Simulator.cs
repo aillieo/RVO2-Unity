@@ -1347,6 +1347,16 @@ namespace RVO
                         // so the old obstaclesPtr value became invalid and we have to assign again.
                         Obstacle* newObstacle = this.NewObstacleVert(splitPoint, obstacleJ1->obstacle);
                         obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
+
+                        // 往NativeList中添加新元素可能导致NativeList扩容
+                        // NativeList扩容后,指针指向了新地址
+                        // 这时通过原指针计算出的其他指针还指向旧地址
+                        // 需要更新这些指针
+                        obstacleI1 = obstaclesPtr + obstacleI1Index;
+                        obstacleI2 = obstaclesPtr + obstacleI2Index;
+                        obstacleJ1 = obstaclesPtr + obstacleJ1Index;
+                        obstacleJ2 = obstaclesPtr + obstacleJ2Index;
+
                         var newObstacleIndex = newObstacle->id;
                         newObstacle->previousIndex = obstacleJ1Index;
                         newObstacle->nextIndex = obstacleJ2Index;
