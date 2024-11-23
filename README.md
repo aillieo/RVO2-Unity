@@ -32,3 +32,6 @@ Sceen records for samples:
 
 ![image](./Screenshots/sample_04.gif)
 
+- Work with GameObjects and MonoBehaviours
+
+![image](./Screenshots/sample_05.gif)
