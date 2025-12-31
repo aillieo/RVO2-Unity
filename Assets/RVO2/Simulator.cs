@@ -207,10 +207,19 @@ namespace RVO
             }
 
             var lastIndex = this.agents.Length - 1;
-            var lastId = this.agents[lastIndex].id;
-            this.agents.RemoveAtSwapBack(index);
-            this.agentIndexLookup.Remove(agentId);
-            this.agentIndexLookup[lastId] = index;
+            var removingLast = index == lastIndex;
+            if (removingLast)
+            {
+                this.agents.RemoveAtSwapBack(index);
+                this.agentIndexLookup.Remove(agentId);
+            }
+            else
+            {
+                var lastId = this.agents[lastIndex].id;
+                this.agents.RemoveAtSwapBack(index);
+                this.agentIndexLookup.Remove(agentId);
+                this.agentIndexLookup[lastId] = index;
+            }
 
             this.agentTreeDirty = true;
 
@@ -235,10 +244,19 @@ namespace RVO
                 removed++;
 
                 var lastIndex = this.agents.Length - 1;
-                var lastId = this.agents[lastIndex].id;
-                this.agents.RemoveAtSwapBack(index);
-                this.agentIndexLookup.Remove(agentId);
-                this.agentIndexLookup[lastId] = index;
+                var removingLast = index == lastIndex;
+                if (removingLast)
+                {
+                    this.agents.RemoveAtSwapBack(index);
+                    this.agentIndexLookup.Remove(agentId);
+                }
+                else
+                {
+                    var lastId = this.agents[lastIndex].id;
+                    this.agents.RemoveAtSwapBack(index);
+                    this.agentIndexLookup.Remove(agentId);
+                    this.agentIndexLookup[lastId] = index;
+                }
             }
 
             this.agentTreeDirty = true;
