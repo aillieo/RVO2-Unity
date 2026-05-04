@@ -48,6 +48,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class Circle : FloatSampleModeGuard
+    {
+    }
+#else
     using System;
     using System.Collections;
     using System.Collections.Generic;
@@ -180,4 +185,5 @@ namespace RVO
             this.simulator.Dispose();
         }
     }
+#endif
 }

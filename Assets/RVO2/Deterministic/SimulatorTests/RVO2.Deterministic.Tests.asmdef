@@ -1,0 +1,25 @@
+{
+    "name": "RVO2.Deterministic.Tests",
+    "rootNamespace": "",
+    "references": [
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "Unity.Mathematics",
+        "RVO2",
+        "Fixed"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "RVO2_DETERMINISTIC"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

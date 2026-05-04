@@ -43,13 +43,21 @@
 namespace RVO
 {
     using System;
+    using Unity.Burst;
     using Unity.Collections;
     using Unity.Collections.LowLevel.Unsafe;
-    using Unity.Mathematics;
+#if RVO2_DETERMINISTIC
+    using RvoReal = RVO.FixedPoint;
+    using RvoVector2 = RVO.FixedPoint2;
+#else
+    using RvoReal = System.Single;
+    using RvoVector2 = Unity.Mathematics.float2;
+#endif
 
     /// <summary>
     /// Defines k-D trees for agentIds and static obstacles in the simulation.
     /// </summary>
+    [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
     internal struct KdTree : IDisposable
     {
         /// <summary>
@@ -125,10 +133,10 @@ namespace RVO
             internal int end;
             internal int left;
             internal int right;
-            internal float maxX;
-            internal float maxY;
-            internal float minX;
-            internal float minY;
+            internal RvoReal maxX;
+            internal RvoReal maxY;
+            internal RvoReal minX;
+            internal RvoReal minY;
         }
 
         internal struct ReadOnly
@@ -147,7 +155,7 @@ namespace RVO
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
             internal readonly unsafe void ComputeAgentNeighbors(
                 Agent* agent,
-                ref float rangeSq,
+                ref RvoReal rangeSq,
                 Agent* agents,
                 int agentsLength,
                 ref UnsafeList<Agent.Pair> agentNeighbors)
@@ -171,7 +179,7 @@ namespace RVO
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
             internal readonly unsafe void ComputeObstacleNeighbors(
                 Agent* agent,
-                float rangeSq,
+                RvoReal rangeSq,
                 Obstacle* obstacles,
                 int obstaclesLength,
                 ref UnsafeList<Agent.Pair> obstacleNeighbors)
@@ -195,9 +203,9 @@ namespace RVO
             /// <param name="obstaclesLength">The length for array <paramref name="obstacles"/>.</param>
             /// <returns>True if q1 and q2 are mutually visible within the radius; false otherwise.</returns>
             internal unsafe bool QueryVisibility(
-                float2 q1,
-                float2 q2,
-                float radius,
+                RvoVector2 q1,
+                RvoVector2 q2,
+                RvoReal radius,
                 Obstacle* obstacles,
                 int obstaclesLength)
             {
@@ -211,8 +219,8 @@ namespace RVO
             }
 
             internal unsafe void QueryAgentTree(
-                in float2 position,
-                in float range,
+                in RvoVector2 position,
+                in RvoReal range,
                 in NativeArray<Agent> agents,
                 ref UnsafeList<Agent> result)
             {
@@ -242,7 +250,7 @@ namespace RVO
             /// <param name="agentNeighbors">The list to store the neighbor data.</param>
             private readonly unsafe void QueryAgentTreeRecursive(
                 Agent* agent,
-                ref float rangeSq,
+                ref RvoReal rangeSq,
                 int node,
                 Agent* agents,
                 int agentsLength,
@@ -268,14 +276,14 @@ namespace RVO
                     var leftChild = this.agentTree[agentTreeNode->left];
                     var rightChild = this.agentTree[agentTreeNode->right];
 
-                    var distSqLeft = RVOMath.Square(math.max(0f, leftChild.minX - agent->position.x))
-                        + RVOMath.Square(math.max(0f, agent->position.x - leftChild.maxX))
-                        + RVOMath.Square(math.max(0f, leftChild.minY - agent->position.y))
-                        + RVOMath.Square(math.max(0f, agent->position.y - leftChild.maxY));
-                    var distSqRight = RVOMath.Square(math.max(0f, rightChild.minX - agent->position.x))
-                        + RVOMath.Square(math.max(0f, agent->position.x - rightChild.maxX))
-                        + RVOMath.Square(math.max(0f, rightChild.minY - agent->position.y))
-                        + RVOMath.Square(math.max(0f, agent->position.y - rightChild.maxY));
+                    var distSqLeft = RVOMath.Square(RVOMath.Max(RVOMath.Zero, leftChild.minX - agent->position.x))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, agent->position.x - leftChild.maxX))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, leftChild.minY - agent->position.y))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, agent->position.y - leftChild.maxY));
+                    var distSqRight = RVOMath.Square(RVOMath.Max(RVOMath.Zero, rightChild.minX - agent->position.x))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, agent->position.x - rightChild.maxX))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, rightChild.minY - agent->position.y))
+                        + RVOMath.Square(RVOMath.Max(RVOMath.Zero, agent->position.y - rightChild.maxY));
 
                     if (distSqLeft < distSqRight)
                     {
@@ -339,7 +347,7 @@ namespace RVO
             /// <param name="obstacleNeighbors">The list to store the neighbor dara.</param>
             private readonly unsafe void QueryObstacleTreeRecursive(
                 Agent* agent,
-                float rangeSq,
+                RvoReal rangeSq,
                 int nodeIndex,
                 Obstacle* obstacles,
                 int obstaclesLength,
@@ -368,16 +376,16 @@ namespace RVO
                 this.QueryObstacleTreeRecursive(
                     agent,
                     rangeSq,
-                    agentLeftOfLine >= 0f ? node->leftIndex : node->rightIndex,
+                    agentLeftOfLine >= RVOMath.Zero ? node->leftIndex : node->rightIndex,
                     obstacles,
                     obstaclesLength,
                     ref obstacleNeighbors);
 
-                var distSqLine = RVOMath.Square(agentLeftOfLine) / math.lengthsq(obstacle2->point - obstacle1->point);
+                var distSqLine = RVOMath.Square(agentLeftOfLine) / RVOMath.LengthSq(obstacle2->point - obstacle1->point);
 
                 if (distSqLine < rangeSq)
                 {
-                    if (agentLeftOfLine < 0f)
+                    if (agentLeftOfLine < RVOMath.Zero)
                     {
                         // Try obstacle at this node only if agent is on right side of
                         // obstacle (and can see obstacle).
@@ -393,7 +401,7 @@ namespace RVO
                     this.QueryObstacleTreeRecursive(
                         agent,
                         rangeSq,
-                        agentLeftOfLine >= 0f ? node->rightIndex : node->leftIndex,
+                        agentLeftOfLine >= RVOMath.Zero ? node->rightIndex : node->leftIndex,
                         obstacles,
                         obstaclesLength,
                         ref obstacleNeighbors);
@@ -411,9 +419,9 @@ namespace RVO
             /// <param name="obstaclesLength">The length for array <paramref name="obstacles"/>.</param>
             /// <returns>If q1 and q2 are mutually visible within the radius or not.</returns>
             private unsafe bool QueryVisibilityRecursive(
-                float2 q1,
-                float2 q2,
-                float radius,
+                RvoVector2 q1,
+                RvoVector2 q2,
+                RvoReal radius,
                 int nodeIndex,
                 Obstacle* obstacles,
                 int obstaclesLength)
@@ -438,24 +446,24 @@ namespace RVO
 
                 var q1LeftOfI = RVOMath.LeftOf(obstacle1->point, obstacle2->point, q1);
                 var q2LeftOfI = RVOMath.LeftOf(obstacle1->point, obstacle2->point, q2);
-                var invLengthI = 1f / math.lengthsq(obstacle2->point - obstacle1->point);
+                var invLengthI = RVOMath.One / RVOMath.LengthSq(obstacle2->point - obstacle1->point);
                 var radiusSq = RVOMath.Square(radius);
 
-                if (q1LeftOfI >= 0f && q2LeftOfI >= 0f)
+                if (q1LeftOfI >= RVOMath.Zero && q2LeftOfI >= RVOMath.Zero)
                 {
                     return this.QueryVisibilityRecursive(q1, q2, radius, node->leftIndex, obstacles, obstaclesLength)
                         && ((RVOMath.Square(q1LeftOfI) * invLengthI >= radiusSq && RVOMath.Square(q2LeftOfI) * invLengthI >= radiusSq)
                             || this.QueryVisibilityRecursive(q1, q2, radius, node->rightIndex, obstacles, obstaclesLength));
                 }
 
-                if (q1LeftOfI <= 0f && q2LeftOfI <= 0f)
+                if (q1LeftOfI <= RVOMath.Zero && q2LeftOfI <= RVOMath.Zero)
                 {
                     return this.QueryVisibilityRecursive(q1, q2, radius, node->rightIndex, obstacles, obstaclesLength)
                         && ((RVOMath.Square(q1LeftOfI) * invLengthI >= radiusSq && RVOMath.Square(q2LeftOfI) * invLengthI >= radiusSq)
                             || this.QueryVisibilityRecursive(q1, q2, radius, node->leftIndex, obstacles, obstaclesLength));
                 }
 
-                if (q1LeftOfI >= 0f && q2LeftOfI <= 0f)
+                if (q1LeftOfI >= RVOMath.Zero && q2LeftOfI <= RVOMath.Zero)
                 {
                     // One can see through obstacle from left to right.
                     return this.QueryVisibilityRecursive(q1, q2, radius, node->leftIndex, obstacles, obstaclesLength)
@@ -464,9 +472,9 @@ namespace RVO
 
                 var point1LeftOfQ = RVOMath.LeftOf(q1, q2, obstacle1->point);
                 var point2LeftOfQ = RVOMath.LeftOf(q1, q2, obstacle2->point);
-                var invLengthQ = 1f / math.lengthsq(q2 - q1);
+                var invLengthQ = RVOMath.One / RVOMath.LengthSq(q2 - q1);
 
-                return point1LeftOfQ * point2LeftOfQ >= 0f
+                return point1LeftOfQ * point2LeftOfQ >= RVOMath.Zero
                     && RVOMath.Square(point1LeftOfQ) * invLengthQ > radiusSq
                     && RVOMath.Square(point2LeftOfQ) * invLengthQ > radiusSq
                     && this.QueryVisibilityRecursive(q1, q2, radius, node->leftIndex, obstacles, obstaclesLength)
@@ -475,8 +483,8 @@ namespace RVO
 
             private unsafe void QueryAgentTreeRecursive(
                 int nodeIndex,
-                in float2 position,
-                in float range,
+                in RvoVector2 position,
+                in RvoReal range,
                 Agent* agents,
                 in int agentsLength,
                 ref UnsafeList<Agent> result)
@@ -502,10 +510,10 @@ namespace RVO
                     for (var i = node->begin; i < node->end; ++i)
                     {
                         var agentIndex = this.agentIds[i];
-                        float2 agentPosition = (agents + agentIndex)->position;
+                        RvoVector2 agentPosition = (agents + agentIndex)->position;
 
                         // Check if the agent is within the specified range
-                        if (math.distancesq(position, agentPosition) <= rangeSq)
+                        if (RVOMath.LengthSq(position - agentPosition) <= rangeSq)
                         {
                             result.Add(agents[agentIndex]);
                         }

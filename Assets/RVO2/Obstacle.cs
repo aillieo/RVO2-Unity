@@ -42,7 +42,11 @@
 
 namespace RVO
 {
-    using Unity.Mathematics;
+#if RVO2_DETERMINISTIC
+    using RvoVector2 = RVO.FixedPoint2;
+#else
+    using RvoVector2 = Unity.Mathematics.float2;
+#endif
 
     /// <summary>
     /// Defines static obstacles in the simulation.
@@ -50,15 +54,15 @@ namespace RVO
     internal struct Obstacle
     {
         internal readonly int id;
-        internal readonly float2 point;
+        internal readonly RvoVector2 point;
         internal readonly int obstacle;
 
         internal int nextIndex;
         internal int previousIndex;
         internal bool convex;
-        internal float2 direction;
+        internal RvoVector2 direction;
 
-        internal Obstacle(int id, float2 point, int obstacle)
+        internal Obstacle(int id, RvoVector2 point, int obstacle)
             : this()
         {
             this.id = id;

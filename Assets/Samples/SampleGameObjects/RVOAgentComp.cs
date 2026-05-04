@@ -6,6 +6,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class RVOAgentComp : FloatSampleModeGuard
+    {
+    }
+#else
     using Unity.Mathematics;
     using UnityEngine;
 
@@ -67,4 +72,5 @@ namespace RVO
             this.transform.position = new Vector3(position2.x, prevPosition.y, position2.y);
         }
     }
+#endif
 }

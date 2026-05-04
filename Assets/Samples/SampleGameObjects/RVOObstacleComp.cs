@@ -6,6 +6,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class RVOObstacleComp : FloatSampleModeGuard
+    {
+    }
+#else
     using UnityEngine;
 
     internal class RVOObstacleComp : MonoBehaviour
@@ -32,4 +37,5 @@ namespace RVO
             this.obstacleId = default;
         }
     }
+#endif
 }

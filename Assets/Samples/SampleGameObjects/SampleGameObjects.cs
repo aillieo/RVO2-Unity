@@ -6,6 +6,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class SampleGameObjects : FloatSampleModeGuard
+    {
+    }
+#else
     using Unity.Mathematics;
     using UnityEngine;
     using UnityEngine.Assertions;
@@ -136,4 +141,5 @@ namespace RVO
             gameQuiting = true;
         }
     }
+#endif
 }
