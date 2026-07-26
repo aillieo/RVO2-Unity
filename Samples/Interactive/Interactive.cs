@@ -6,6 +6,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class Interactive : FloatSampleModeGuard
+    {
+    }
+#else
     using System;
     using System.Collections.Generic;
     using Unity.Mathematics;
@@ -421,4 +426,5 @@ namespace RVO
             public int obstacleId;
         }
     }
+#endif
 }

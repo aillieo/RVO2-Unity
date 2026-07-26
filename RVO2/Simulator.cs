@@ -51,6 +51,13 @@ namespace RVO
     using Unity.Jobs;
     using Unity.Mathematics;
     using UnityEngine;
+#if RVO2_DETERMINISTIC
+    using RvoReal = RVO.FixedPoint;
+    using RvoVector2 = RVO.FixedPoint2;
+#else
+    using RvoReal = System.Single;
+    using RvoVector2 = Unity.Mathematics.float2;
+#endif
 
     /// <summary>
     /// Defines the simulation.
@@ -60,7 +67,7 @@ namespace RVO
         private NativeList<Agent> agents;
         private NativeList<Obstacle> obstacles;
         private KdTree kdTree;
-        private float timeStep;
+        private RvoReal timeStep;
 
         private NativeParallelHashMap<int, int> agentIndexLookup;
         private NativeParallelMultiHashMap<int, int> obstacleIndexLookup;
@@ -72,7 +79,7 @@ namespace RVO
 
         private JobHandle jobHandle;
 
-        private float globalTime;
+        private RvoReal globalTime;
         private bool disposedValue;
 
         private bool agentTreeDirty;
@@ -109,11 +116,23 @@ namespace RVO
         /// have not been set.</returns>
         public int AddAgent(float2 position)
         {
+            return this.AddAgentInternal(RVOMath.ToReal(position));
+        }
+
+#if RVO2_DETERMINISTIC
+        public int AddAgent(RvoVector2 position)
+        {
+            return this.AddAgentInternal(position);
+        }
+#endif
+
+        private int AddAgentInternal(RvoVector2 position)
+        {
             unsafe
             {
                 fixed (Agent* defaultAgentPrt = &this.defaultAgent)
                 {
-                    return this.AddAgent(
+                    return this.AddAgentInternal(
                         position,
                         defaultAgentPrt->neighborDist,
                         defaultAgentPrt->maxNeighbors,
@@ -137,6 +156,24 @@ namespace RVO
         /// the environment, the vertices should be listed in clockwise order.
         /// </remarks>
         public int AddObstacle(IList<float2> vertices)
+        {
+            var realVertices = new RvoVector2[vertices.Count];
+            for (var i = 0; i < vertices.Count; ++i)
+            {
+                realVertices[i] = RVOMath.ToReal(vertices[i]);
+            }
+
+            return this.AddObstacleInternal(realVertices);
+        }
+
+#if RVO2_DETERMINISTIC
+        public int AddObstacle(IList<RvoVector2> vertices)
+        {
+            return this.AddObstacleInternal(vertices);
+        }
+#endif
+
+        private int AddObstacleInternal(IList<RvoVector2> vertices)
         {
             if (vertices.Count < 2)
             {
@@ -173,7 +210,7 @@ namespace RVO
                         next->previousIndex = startIndex;
                     }
 
-                    obstacle->direction = math.normalize(vertices[isLast ? 0 : i + 1] - vertices[i]);
+                    obstacle->direction = RVOMath.Normalize(vertices[isLast ? 0 : i + 1] - vertices[i]);
 
                     if (vertices.Count == 2)
                     {
@@ -184,7 +221,7 @@ namespace RVO
                         obstacle->convex = RVOMath.LeftOf(
                             vertices[isFirst ? vertices.Count - 1 : i - 1],
                             vertices[i],
-                            vertices[isLast ? 0 : i + 1]) >= 0f;
+                            vertices[isLast ? 0 : i + 1]) >= RVOMath.Zero;
                     }
                 }
             }
@@ -207,10 +244,19 @@ namespace RVO
             }
 
             var lastIndex = this.agents.Length - 1;
-            var lastId = this.agents[lastIndex].id;
-            this.agents.RemoveAtSwapBack(index);
-            this.agentIndexLookup.Remove(agentId);
-            this.agentIndexLookup[lastId] = index;
+            var removingLast = index == lastIndex;
+            if (removingLast)
+            {
+                this.agents.RemoveAtSwapBack(index);
+                this.agentIndexLookup.Remove(agentId);
+            }
+            else
+            {
+                var lastId = this.agents[lastIndex].id;
+                this.agents.RemoveAtSwapBack(index);
+                this.agentIndexLookup.Remove(agentId);
+                this.agentIndexLookup[lastId] = index;
+            }
 
             this.agentTreeDirty = true;
 
@@ -235,10 +281,19 @@ namespace RVO
                 removed++;
 
                 var lastIndex = this.agents.Length - 1;
-                var lastId = this.agents[lastIndex].id;
-                this.agents.RemoveAtSwapBack(index);
-                this.agentIndexLookup.Remove(agentId);
-                this.agentIndexLookup[lastId] = index;
+                var removingLast = index == lastIndex;
+                if (removingLast)
+                {
+                    this.agents.RemoveAtSwapBack(index);
+                    this.agentIndexLookup.Remove(agentId);
+                }
+                else
+                {
+                    var lastId = this.agents[lastIndex].id;
+                    this.agents.RemoveAtSwapBack(index);
+                    this.agentIndexLookup.Remove(agentId);
+                    this.agentIndexLookup[lastId] = index;
+                }
             }
 
             this.agentTreeDirty = true;
@@ -333,8 +388,8 @@ namespace RVO
                 this.obstacles.Clear();
             }
 
-            this.globalTime = 0f;
-            this.timeStep = 0.1f;
+            this.globalTime = RVOMath.Zero;
+            this.timeStep = RVOMath.FromRatio(1, 10);
 
             this.SetNumWorkers(0);
 
@@ -362,7 +417,7 @@ namespace RVO
 
             // job1
             var innerLoop = Mathf.Max(arrayLength / Mathf.Max(this.numWorkers, 1), 1);
-            var agentResult = new NativeArray<float2>(this.agents.Length, Allocator.TempJob);
+            var agentResult = new NativeArray<RvoVector2>(this.agents.Length, Allocator.TempJob);
             var computeJob = new ComputeJob(
                 this.agents.AsParallelReader(),
                 this.obstacles.AsParallelReader(),
@@ -412,6 +467,11 @@ namespace RVO
         /// <returns>The present maximum speed of the agent.</returns>
         public float GetAgentMaxSpeed(int agentId)
         {
+            return RVOMath.ToFloat(this.GetAgentMaxSpeedFixed(agentId));
+        }
+
+        public RvoReal GetAgentMaxSpeedFixed(int agentId)
+        {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].maxSpeed;
         }
@@ -423,6 +483,11 @@ namespace RVO
         /// distance is to be retrieved.</param>
         /// <returns>The present maximum neighbor distance of the agent.</returns>
         public float GetAgentNeighborDist(int agentId)
+        {
+            return RVOMath.ToFloat(this.GetAgentNeighborDistFixed(agentId));
+        }
+
+        public RvoReal GetAgentNeighborDistFixed(int agentId)
         {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].neighborDist;
@@ -476,6 +541,11 @@ namespace RVO
         /// <returns>The present two-dimensional position of the(center of the) agent.</returns>
         public float2 GetAgentPosition(int agentId)
         {
+            return RVOMath.ToFloat(this.GetAgentPositionFixed(agentId));
+        }
+
+        public RvoVector2 GetAgentPositionFixed(int agentId)
+        {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].position;
         }
@@ -488,6 +558,11 @@ namespace RVO
         /// <returns>The present two-dimensional preferred velocity of the agent.</returns>
         public float2 GetAgentPrefVelocity(int agentId)
         {
+            return RVOMath.ToFloat(this.GetAgentPrefVelocityFixed(agentId));
+        }
+
+        public RvoVector2 GetAgentPrefVelocityFixed(int agentId)
+        {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].prefVelocity;
         }
@@ -499,6 +574,11 @@ namespace RVO
         /// retrieved.</param>
         /// <returns>The present radius of the agent.</returns>
         public float GetAgentRadius(int agentId)
+        {
+            return RVOMath.ToFloat(this.GetAgentRadiusFixed(agentId));
+        }
+
+        public RvoReal GetAgentRadiusFixed(int agentId)
         {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].radius;
@@ -513,6 +593,11 @@ namespace RVO
         /// to be retrieved.</param>
         public float GetAgentTimeHorizon(int agentId)
         {
+            return RVOMath.ToFloat(this.GetAgentTimeHorizonFixed(agentId));
+        }
+
+        public RvoReal GetAgentTimeHorizonFixed(int agentId)
+        {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].timeHorizon;
         }
@@ -524,6 +609,11 @@ namespace RVO
         /// respect to obstacles is to be retrieved.</param>
         /// <returns>The present time horizon with respect to obstacles of the agent.</returns>
         public float GetAgentTimeHorizonObst(int agentId)
+        {
+            return RVOMath.ToFloat(this.GetAgentTimeHorizonObstFixed(agentId));
+        }
+
+        public RvoReal GetAgentTimeHorizonObstFixed(int agentId)
         {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].timeHorizonObst;
@@ -537,6 +627,11 @@ namespace RVO
         /// <returns>The present two-dimensional linear velocity of the agent.</returns>
         public float2 GetAgentVelocity(int agentId)
         {
+            return RVOMath.ToFloat(this.GetAgentVelocityFixed(agentId));
+        }
+
+        public RvoVector2 GetAgentVelocityFixed(int agentId)
+        {
             var index = this.agentIndexLookup[agentId];
             return this.agents[index].velocity;
         }
@@ -547,6 +642,11 @@ namespace RVO
         /// <returns>The present global time of the simulation (zero initially).
         /// </returns>
         public float GetGlobalTime()
+        {
+            return RVOMath.ToFloat(this.globalTime);
+        }
+
+        public RvoReal GetGlobalTimeFixed()
         {
             return this.globalTime;
         }
@@ -584,6 +684,11 @@ namespace RVO
         /// <param name="vertexId">The number of the obstacle vertex to be retrieved.</param>
         /// <returns>The two-dimensional position of the specified obstacle vertex.</returns>
         public float2 GetObstacleVertex(int vertexId)
+        {
+            return RVOMath.ToFloat(this.GetObstacleVertexFixed(vertexId));
+        }
+
+        public RvoVector2 GetObstacleVertexFixed(int vertexId)
         {
             return this.obstacles[vertexId].point;
         }
@@ -636,6 +741,11 @@ namespace RVO
         /// <returns>The present time step of the simulation.</returns>
         public float GetTimeStep()
         {
+            return RVOMath.ToFloat(this.timeStep);
+        }
+
+        public RvoReal GetTimeStepFixed()
+        {
             return this.timeStep;
         }
 
@@ -652,6 +762,18 @@ namespace RVO
         /// visible. Returns true when the obstacles have not been processed.
         /// </returns>
         public bool QueryVisibility(float2 point1, float2 point2, float radius)
+        {
+            return this.QueryVisibilityInternal(RVOMath.ToReal(point1), RVOMath.ToReal(point2), RVOMath.ToReal(radius));
+        }
+
+#if RVO2_DETERMINISTIC
+        public bool QueryVisibility(RvoVector2 point1, RvoVector2 point2, RvoReal radius)
+        {
+            return this.QueryVisibilityInternal(point1, point2, radius);
+        }
+#endif
+
+        private bool QueryVisibilityInternal(RvoVector2 point1, RvoVector2 point2, RvoReal radius)
         {
             this.EnsureCompleted();
 
@@ -709,6 +831,46 @@ namespace RVO
             float maxSpeed,
             float2 velocity)
         {
+            this.SetAgentDefaultsInternal(
+                RVOMath.ToReal(neighborDist),
+                maxNeighbors,
+                RVOMath.ToReal(timeHorizon),
+                RVOMath.ToReal(timeHorizonObst),
+                RVOMath.ToReal(radius),
+                RVOMath.ToReal(maxSpeed),
+                RVOMath.ToReal(velocity));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentDefaults(
+            RvoReal neighborDist,
+            int maxNeighbors,
+            RvoReal timeHorizon,
+            RvoReal timeHorizonObst,
+            RvoReal radius,
+            RvoReal maxSpeed,
+            RvoVector2 velocity)
+        {
+            this.SetAgentDefaultsInternal(
+                neighborDist,
+                maxNeighbors,
+                timeHorizon,
+                timeHorizonObst,
+                radius,
+                maxSpeed,
+                velocity);
+        }
+#endif
+
+        private void SetAgentDefaultsInternal(
+            RvoReal neighborDist,
+            int maxNeighbors,
+            RvoReal timeHorizon,
+            RvoReal timeHorizonObst,
+            RvoReal radius,
+            RvoReal maxSpeed,
+            RvoVector2 velocity)
+        {
             this.defaultAgent = new Agent
             {
                 maxNeighbors = maxNeighbors,
@@ -745,6 +907,18 @@ namespace RVO
         /// non-negative.</param>
         public void SetAgentMaxSpeed(int agentId, float maxSpeed)
         {
+            this.SetAgentMaxSpeedInternal(agentId, RVOMath.ToReal(maxSpeed));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentMaxSpeed(int agentId, RvoReal maxSpeed)
+        {
+            this.SetAgentMaxSpeedInternal(agentId, maxSpeed);
+        }
+#endif
+
+        private void SetAgentMaxSpeedInternal(int agentId, RvoReal maxSpeed)
+        {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
             agent.maxSpeed = maxSpeed;
@@ -759,6 +933,18 @@ namespace RVO
         /// <param name="neighborDist">The replacement maximum neighbor distance.
         /// Must be non-negative.</param>
         public void SetAgentNeighborDist(int agentId, float neighborDist)
+        {
+            this.SetAgentNeighborDistInternal(agentId, RVOMath.ToReal(neighborDist));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentNeighborDist(int agentId, RvoReal neighborDist)
+        {
+            this.SetAgentNeighborDistInternal(agentId, neighborDist);
+        }
+#endif
+
+        private void SetAgentNeighborDistInternal(int agentId, RvoReal neighborDist)
         {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
@@ -775,6 +961,18 @@ namespace RVO
         /// position.</param>
         public void SetAgentPosition(int agentId, float2 position)
         {
+            this.SetAgentPositionInternal(agentId, RVOMath.ToReal(position));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentPosition(int agentId, RvoVector2 position)
+        {
+            this.SetAgentPositionInternal(agentId, position);
+        }
+#endif
+
+        private void SetAgentPositionInternal(int agentId, RvoVector2 position)
+        {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
             agent.position = position;
@@ -790,6 +988,18 @@ namespace RVO
         /// preferred velocity.</param>
         public void SetAgentPrefVelocity(int agentId, float2 prefVelocity)
         {
+            this.SetAgentPrefVelocityInternal(agentId, RVOMath.ToReal(prefVelocity));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentPrefVelocity(int agentId, RvoVector2 prefVelocity)
+        {
+            this.SetAgentPrefVelocityInternal(agentId, prefVelocity);
+        }
+#endif
+
+        private void SetAgentPrefVelocityInternal(int agentId, RvoVector2 prefVelocity)
+        {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
             agent.prefVelocity = prefVelocity;
@@ -802,6 +1012,18 @@ namespace RVO
         /// <param name="agentId">The number of the agent whose radius is to be modified.</param>
         /// <param name="radius">The replacement radius. Must be non-negative.</param>
         public void SetAgentRadius(int agentId, float radius)
+        {
+            this.SetAgentRadiusInternal(agentId, RVOMath.ToReal(radius));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentRadius(int agentId, RvoReal radius)
+        {
+            this.SetAgentRadiusInternal(agentId, radius);
+        }
+#endif
+
+        private void SetAgentRadiusInternal(int agentId, RvoReal radius)
         {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
@@ -816,6 +1038,18 @@ namespace RVO
         /// <param name="timeHorizon">The replacement time horizon with respect to
         /// other agentIds. Must be positive.</param>
         public void SetAgentTimeHorizon(int agentId, float timeHorizon)
+        {
+            this.SetAgentTimeHorizonInternal(agentId, RVOMath.ToReal(timeHorizon));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentTimeHorizon(int agentId, RvoReal timeHorizon)
+        {
+            this.SetAgentTimeHorizonInternal(agentId, timeHorizon);
+        }
+#endif
+
+        private void SetAgentTimeHorizonInternal(int agentId, RvoReal timeHorizon)
         {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
@@ -832,6 +1066,18 @@ namespace RVO
         /// respect to obstacles. Must be positive.</param>
         public void SetAgentTimeHorizonObst(int agentId, float timeHorizonObst)
         {
+            this.SetAgentTimeHorizonObstInternal(agentId, RVOMath.ToReal(timeHorizonObst));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentTimeHorizonObst(int agentId, RvoReal timeHorizonObst)
+        {
+            this.SetAgentTimeHorizonObstInternal(agentId, timeHorizonObst);
+        }
+#endif
+
+        private void SetAgentTimeHorizonObstInternal(int agentId, RvoReal timeHorizonObst)
+        {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
             agent.timeHorizonObst = timeHorizonObst;
@@ -846,6 +1092,18 @@ namespace RVO
         /// <param name="velocity">The replacement two-dimensional linear velocity.</param>
         public void SetAgentVelocity(int agentId, float2 velocity)
         {
+            this.SetAgentVelocityInternal(agentId, RVOMath.ToReal(velocity));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetAgentVelocity(int agentId, RvoVector2 velocity)
+        {
+            this.SetAgentVelocityInternal(agentId, velocity);
+        }
+#endif
+
+        private void SetAgentVelocityInternal(int agentId, RvoVector2 velocity)
+        {
             var index = this.agentIndexLookup[agentId];
             Agent agent = this.agents[index];
             agent.velocity = velocity;
@@ -857,6 +1115,18 @@ namespace RVO
         /// </summary>
         /// <param name="globalTime">The global time of the simulation.</param>
         public void SetGlobalTime(float globalTime)
+        {
+            this.SetGlobalTimeInternal(RVOMath.ToReal(globalTime));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetGlobalTime(RvoReal globalTime)
+        {
+            this.SetGlobalTimeInternal(globalTime);
+        }
+#endif
+
+        private void SetGlobalTimeInternal(RvoReal globalTime)
         {
             this.globalTime = globalTime;
         }
@@ -882,6 +1152,18 @@ namespace RVO
         /// Must be positive.</param>
         public void SetTimeStep(float timeStep)
         {
+            this.SetTimeStepInternal(RVOMath.ToReal(timeStep));
+        }
+
+#if RVO2_DETERMINISTIC
+        public void SetTimeStep(RvoReal timeStep)
+        {
+            this.SetTimeStepInternal(timeStep);
+        }
+#endif
+
+        private void SetTimeStepInternal(RvoReal timeStep)
+        {
             this.timeStep = timeStep;
         }
 
@@ -893,6 +1175,18 @@ namespace RVO
         /// <param name="result">The list to store the agentIds found.</param>
         /// <returns>The number of agentIds found within the specified radius.</returns>
         public int QueryAgent(float2 point, float radius, List<int> result)
+        {
+            return this.QueryAgentInternal(RVOMath.ToReal(point), RVOMath.ToReal(radius), result);
+        }
+
+#if RVO2_DETERMINISTIC
+        public int QueryAgent(RvoVector2 point, RvoReal radius, List<int> result)
+        {
+            return this.QueryAgentInternal(point, radius, result);
+        }
+#endif
+
+        private int QueryAgentInternal(RvoVector2 point, RvoReal radius, List<int> result)
         {
             if (result == null)
             {
@@ -961,10 +1255,10 @@ namespace RVO
             for (var i = begin + 1; i < end; ++i)
             {
                 Agent* agentI = agents + agentIdsPtr[i];
-                node->maxX = math.max(node->maxX, agentI->position.x);
-                node->minX = math.min(node->minX, agentI->position.x);
-                node->maxY = math.max(node->maxY, agentI->position.y);
-                node->minY = math.min(node->minY, agentI->position.y);
+                node->maxX = RVOMath.Max(node->maxX, agentI->position.x);
+                node->minX = RVOMath.Min(node->minX, agentI->position.x);
+                node->maxY = RVOMath.Max(node->maxY, agentI->position.y);
+                node->minY = RVOMath.Min(node->minY, agentI->position.y);
             }
 
             if (end - begin <= KdTree.MaxLeafSize)
@@ -975,7 +1269,7 @@ namespace RVO
             // No leaf node.
             var isVertical = node->maxX - node->minX
                              > node->maxY - node->minY;
-            var splitValue = 0.5f * (isVertical
+            var splitValue = RVOMath.Half * (isVertical
                                  ? node->maxX + node->minX
                                  : node->maxY + node->minY);
 
@@ -1084,7 +1378,7 @@ namespace RVO
             BuildAgentTreeRecursive(ref kdTree, 0, kdTree.agentIds.Length, 0, agents, agentsLength);
         }
 
-        private unsafe Obstacle* NewObstacleVert(float2 point, int obstacleId)
+        private unsafe Obstacle* NewObstacleVert(RvoVector2 point, int obstacleId)
         {
             var newIndex = this.obstacles.Length;
             var obstacleVert = new Obstacle(newIndex, point, obstacleId);
@@ -1148,15 +1442,15 @@ namespace RVO
         /// <param name="velocity">The initial two-dimensional linear velocity of
         /// this agent.</param>
         /// <returns>The number of the agent.</returns>
-        private unsafe int AddAgent(
-            float2 position,
-            float neighborDist,
+        private unsafe int AddAgentInternal(
+            RvoVector2 position,
+            RvoReal neighborDist,
             int maxNeighbors,
-            float timeHorizon,
-            float timeHorizonObst,
-            float radius,
-            float maxSpeed,
-            float2 velocity)
+            RvoReal timeHorizon,
+            RvoReal timeHorizonObst,
+            RvoReal radius,
+            RvoReal maxSpeed,
+            RvoVector2 velocity)
         {
             Agent* agent = this.NewAgent();
             agent->maxNeighbors = maxNeighbors;
@@ -1262,8 +1556,8 @@ namespace RVO
                         ++rightSize;
                     }
 
-                    var bound1 = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
-                    var bound2 = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
+                    var bound1 = new RvoVector2((RvoReal)Math.Max(leftSize, rightSize), (RvoReal)Math.Min(leftSize, rightSize));
+                    var bound2 = new RvoVector2((RvoReal)Math.Max(minLeft, minRight), (RvoReal)Math.Min(minLeft, minRight));
 
                     if (RVOMath.GreaterEqual(bound1, bound2))
                     {
@@ -1271,8 +1565,8 @@ namespace RVO
                     }
                 }
 
-                var bound1f = new float2(math.max(leftSize, rightSize), math.min(leftSize, rightSize));
-                var bound2f = new float2(math.max(minLeft, minRight), math.min(minLeft, minRight));
+                var bound1f = new RvoVector2((RvoReal)Math.Max(leftSize, rightSize), (RvoReal)Math.Min(leftSize, rightSize));
+                var bound2f = new RvoVector2((RvoReal)Math.Max(minLeft, minRight), (RvoReal)Math.Min(minLeft, minRight));
 
                 if (!RVOMath.Less(bound1f, bound2f))
                 {
@@ -1341,12 +1635,22 @@ namespace RVO
                         var t = RVOMath.Det(dI2I1, obstacleJ1->point - obstacleI1->point)
                             / RVOMath.Det(dI2I1, obstacleJ1->point - obstacleJ2->point);
 
-                        float2 splitPoint = obstacleJ1->point + (t * (obstacleJ2->point - obstacleJ1->point));
+                        RvoVector2 splitPoint = obstacleJ1->point + (t * (obstacleJ2->point - obstacleJ1->point));
 
                         // NewObstacleVert will cause this.obstacles change
                         // so the old obstaclesPtr value became invalid and we have to assign again.
                         Obstacle* newObstacle = this.NewObstacleVert(splitPoint, obstacleJ1->obstacle);
                         obstaclesPtr = (Obstacle*)this.obstacles.GetUnsafePtr();
+
+                        // 往NativeList中添加新元素可能导致NativeList扩容
+                        // NativeList扩容后,指针指向了新地址
+                        // 这时通过原指针计算出的其他指针还指向旧地址
+                        // 需要更新这些指针
+                        obstacleI1 = obstaclesPtr + obstacleI1Index;
+                        obstacleI2 = obstaclesPtr + obstacleI2Index;
+                        obstacleJ1 = obstaclesPtr + obstacleJ1Index;
+                        obstacleJ2 = obstaclesPtr + obstacleJ2Index;
+
                         var newObstacleIndex = newObstacle->id;
                         newObstacle->previousIndex = obstacleJ1Index;
                         newObstacle->nextIndex = obstacleJ2Index;
@@ -1356,7 +1660,7 @@ namespace RVO
                         obstacleJ1->nextIndex = newObstacleIndex;
                         obstacleJ2->previousIndex = newObstacleIndex;
 
-                        if (j1LeftOfI > 0f)
+                        if (j1LeftOfI > RVOMath.Zero)
                         {
                             leftObstaclesPtr[leftCounter++] = obstacleJ1Index;
                             rightObstaclesPtr[rightCounter++] = newObstacleIndex;
@@ -1437,7 +1741,7 @@ namespace RVO
             return (Agent*)this.agents.GetUnsafePtr() + newIndex;
         }
 
-        [BurstCompile]
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
         private struct BuildJob : IJob
         {
             private KdTree kdTree;
@@ -1457,12 +1761,12 @@ namespace RVO
             }
         }
 
-        [BurstCompile]
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
         private struct ComputeJob : IJobParallelFor
         {
-            private readonly float timeStep;
+            private readonly RvoReal timeStep;
             [WriteOnly]
-            private NativeArray<float2> agentResult;
+            private NativeArray<RvoVector2> agentResult;
             [ReadOnly]
             private NativeArray<Agent>.ReadOnly agents;
             [ReadOnly]
@@ -1474,8 +1778,8 @@ namespace RVO
                 NativeArray<Agent>.ReadOnly agents,
                 NativeArray<Obstacle>.ReadOnly obstacles,
                 KdTree.ReadOnly kdTree,
-                float timeStep,
-                NativeArray<float2> agentResult)
+                RvoReal timeStep,
+                NativeArray<RvoVector2> agentResult)
                 : this()
             {
                 this.agents = agents;
@@ -1520,18 +1824,18 @@ namespace RVO
             }
         }
 
-        [BurstCompile]
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
         private struct UpdateJob : IJobParallelFor
         {
-            private readonly float timeStep;
+            private readonly RvoReal timeStep;
             [ReadOnly]
-            private NativeArray<float2> agentResult;
+            private NativeArray<RvoVector2> agentResult;
             private NativeArray<Agent> agents;
 
             public UpdateJob(
                 NativeArray<Agent> agents,
-                float timeStep,
-                NativeArray<float2> agentResult)
+                RvoReal timeStep,
+                NativeArray<RvoVector2> agentResult)
                 : this()
             {
                 this.agents = agents;

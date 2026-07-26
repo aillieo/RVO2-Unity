@@ -43,22 +43,26 @@
 namespace RVO
 {
     using System;
-    using Unity.Mathematics;
+#if RVO2_DETERMINISTIC
+    using RvoVector2 = RVO.FixedPoint2;
+#else
+    using RvoVector2 = Unity.Mathematics.float2;
+#endif
 
     /// <summary>
     /// Defines a directed line.
     /// </summary>
     internal readonly struct Line : IEquatable<Line>
     {
-        internal readonly float2 direction;
-        internal readonly float2 point;
+        internal readonly RvoVector2 direction;
+        internal readonly RvoVector2 point;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Line"/> struct.
         /// </summary>
         /// <param name="point">Origin of the Line.</param>
         /// <param name="direction">Direction of the Line.</param>
-        public Line(float2 point, float2 direction)
+        public Line(RvoVector2 point, RvoVector2 direction)
         {
             this.point = point;
             this.direction = direction;

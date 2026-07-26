@@ -6,6 +6,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class Dynamic : FloatSampleModeGuard
+    {
+    }
+#else
     using System;
     using System.Collections.Generic;
     using Unity.Mathematics;
@@ -356,4 +361,5 @@ namespace RVO
             }
         }
     }
+#endif
 }

@@ -44,6 +44,13 @@ namespace RVO
 {
     using Unity.Burst;
     using Unity.Mathematics;
+#if RVO2_DETERMINISTIC
+    using RvoReal = RVO.FixedPoint;
+    using RvoVector2 = RVO.FixedPoint2;
+#else
+    using RvoReal = System.Single;
+    using RvoVector2 = Unity.Mathematics.float2;
+#endif
 
     /// <summary>
     /// Contains functions and constants used in multiple classes.
@@ -53,19 +60,63 @@ namespace RVO
         /// <summary>
         /// A sufficiently small positive number.
         /// </summary>
-        internal const float RVO_EPSILON = 0.00001f;
+        internal static readonly RvoReal RVO_EPSILON =
+#if RVO2_DETERMINISTIC
+            FixedPoint.FromRaw(42950L);
+#else
+            0.00001f;
+#endif
+
+        internal static readonly RvoReal Zero =
+#if RVO2_DETERMINISTIC
+            FixedPoint.Zero;
+#else
+            0f;
+#endif
+
+        internal static readonly RvoReal One =
+#if RVO2_DETERMINISTIC
+            FixedPoint.One;
+#else
+            1f;
+#endif
+
+        internal static readonly RvoReal Half =
+#if RVO2_DETERMINISTIC
+            FixedPoint.Half;
+#else
+            0.5f;
+#endif
+
+        internal static readonly RvoReal MaxValue =
+#if RVO2_DETERMINISTIC
+            FixedPoint.MaxValue;
+#else
+            float.PositiveInfinity;
+#endif
+
+        internal static readonly RvoVector2 ZeroVector =
+#if RVO2_DETERMINISTIC
+            FixedPoint2.Zero;
+#else
+            float2.zero;
+#endif
 
         /// <summary>
         /// Computes the determinant of a two-dimensional square matrix
         /// with rows consisting of the specified two-dimensional vectors.
         /// </summary>
         /// <param name="vector1">The top row of the two-dimensional square matrix.</param>
-        /// <param name="vector2">The bottom row of the two-dimensional square matrix.</param>
+        /// <param name="point2">The bottom row of the two-dimensional square matrix.</param>
         /// <returns>The determinant of the two-dimensional square matrix.</returns>
-        [BurstCompile]
-        internal static float Det(float2 vector1, float2 vector2)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Det(RvoVector2 vector1, RvoVector2 point2)
         {
-            return (vector1.x * vector2.y) - (vector1.y * vector2.x);
+#if RVO2_DETERMINISTIC
+            return FixedPoint2.Cross(vector1, point2);
+#else
+            return (vector1.x * point2.y) - (vector1.y * point2.x);
+#endif
         }
 
         /// <summary>
@@ -73,29 +124,29 @@ namespace RVO
         /// specified endpoints to a specified point.
         /// </summary>
         /// <param name="vector1">The first endpoint of the line segment.</param>
-        /// <param name="vector2">The second endpoint of the line segment.</param>
+        /// <param name="point2">The second endpoint of the line segment.</param>
         /// <param name="vector3">The point to which the squared distance is to be calculated.</param>
         /// <returns>The squared distance from the line segment to the point.</returns>
-        [BurstCompile]
-        internal static float DistSqPointLineSegment(
-            float2 vector1,
-            float2 vector2,
-            float2 vector3)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal DistSqPointLineSegment(
+            RvoVector2 vector1,
+            RvoVector2 point2,
+            RvoVector2 vector3)
         {
-            var r = math.dot(vector3 - vector1, vector2 - vector1)
-                / math.lengthsq(vector2 - vector1);
+            var segment = point2 - vector1;
+            var r = Dot(vector3 - vector1, segment) / LengthSq(segment);
 
-            if (r < 0f)
+            if (r < Zero)
             {
-                return math.lengthsq(vector3 - vector1);
+                return LengthSq(vector3 - vector1);
             }
 
-            if (r > 1f)
+            if (r > One)
             {
-                return math.lengthsq(vector3 - vector2);
+                return LengthSq(vector3 - point2);
             }
 
-            return math.lengthsq(vector3 - (vector1 + (r * (vector2 - vector1))));
+            return LengthSq(vector3 - (vector1 + (r * segment)));
         }
 
         /// <summary>
@@ -106,21 +157,151 @@ namespace RVO
         /// <param name="b">The second point on the line.</param>
         /// <param name="c">The point to which the signed distance is to be calculated.</param>
         /// <returns>Positive when the point c lies to the left of the line ab.</returns>
-        [BurstCompile]
-        internal static float LeftOf(float2 a, float2 b, float2 c)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal LeftOf(RvoVector2 a, RvoVector2 b, RvoVector2 c)
         {
             return Det(a - c, b - a);
         }
 
         /// <summary>
-        /// Computes the square of a float.
+        /// Computes the square of a fixed-point value.
         /// </summary>
-        /// <param name="scalar">The float to be squared.</param>
-        /// <returns>The square of the float.</returns>
-        [BurstCompile]
-        internal static float Square(float scalar)
+        /// <param name="scalar">The fixed-point value to be squared.</param>
+        /// <returns>The square of the fixed-point value.</returns>
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Square(RvoReal scalar)
         {
             return scalar * scalar;
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Dot(RvoVector2 vector1, RvoVector2 point2)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPoint2.Dot(vector1, point2);
+#else
+            return math.dot(vector1, point2);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal LengthSq(RvoVector2 vector)
+        {
+#if RVO2_DETERMINISTIC
+            return vector.SqrMagnitude;
+#else
+            return math.lengthsq(vector);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Length(RvoVector2 vector)
+        {
+#if RVO2_DETERMINISTIC
+            return vector.Magnitude;
+#else
+            return math.length(vector);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoVector2 Normalize(RvoVector2 vector)
+        {
+#if RVO2_DETERMINISTIC
+            return vector.Normalized;
+#else
+            return math.normalizesafe(vector);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoVector2 ToReal(float2 value)
+        {
+#if RVO2_DETERMINISTIC
+            return new FixedPoint2((FixedPoint)value.x, (FixedPoint)value.y);
+#else
+            return value;
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal ToReal(float value)
+        {
+#if RVO2_DETERMINISTIC
+            return (FixedPoint)value;
+#else
+            return value;
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static float2 ToFloat(RvoVector2 value)
+        {
+#if RVO2_DETERMINISTIC
+            return new float2((float)value.x, (float)value.y);
+#else
+            return value;
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static float ToFloat(RvoReal value)
+        {
+#if RVO2_DETERMINISTIC
+            return (float)value;
+#else
+            return value;
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal FromRatio(int numerator, int denominator)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPoint.FromRatio(numerator, denominator);
+#else
+            return (float)numerator / denominator;
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Sqrt(RvoReal value)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPointMath.Sqrt(value);
+#else
+            return math.sqrt(value);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Abs(RvoReal value)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPointMath.Abs(value);
+#else
+            return math.abs(value);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Min(RvoReal a, RvoReal b)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPointMath.Min(a, b);
+#else
+            return math.min(a, b);
+#endif
+        }
+
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static RvoReal Max(RvoReal a, RvoReal b)
+        {
+#if RVO2_DETERMINISTIC
+            return FixedPointMath.Max(a, b);
+#else
+            return math.max(a, b);
+#endif
         }
 
         /// <summary>
@@ -131,8 +312,8 @@ namespace RVO
         /// <param name="b">The second pair of scalar values.</param>
         /// <returns>True if the first pair of scalar values is less
         /// than the second pair of scalar values.</returns>
-        [BurstCompile]
-        internal static bool Less(float2 a, float2 b)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static bool Less(RvoVector2 a, RvoVector2 b)
         {
             return a.x < b.x || (!(b.x < a.x) && a.y < b.y);
         }
@@ -145,8 +326,8 @@ namespace RVO
         /// <param name="b">The second pair of scalar values.</param>
         /// <returns>True if the first pair of scalar values is less
         /// than or equal to the second pair of scalar values.</returns>
-        [BurstCompile]
-        internal static bool LessEqual(float2 a, float2 b)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static bool LessEqual(RvoVector2 a, RvoVector2 b)
         {
             return (a.x == b.x && a.y == b.y) || Less(a, b);
         }
@@ -159,8 +340,8 @@ namespace RVO
         /// <param name="b">The second pair of scalar values.</param>
         /// <returns>True if the first pair of scalar values is greater
         /// than the second pair of scalar values.</returns>
-        [BurstCompile]
-        internal static bool Greater(float2 a, float2 b)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static bool Greater(RvoVector2 a, RvoVector2 b)
         {
             return !LessEqual(a, b);
         }
@@ -173,8 +354,8 @@ namespace RVO
         /// <param name="b">The second pair of scalar values.</param>
         /// <returns>True if the first pair of scalar values is greater
         /// than or equal to the second pair of scalar values.</returns>
-        [BurstCompile]
-        internal static bool GreaterEqual(float2 a, float2 b)
+        [BurstCompile(RvoBurstSettings.FloatPrecision, RvoBurstSettings.FloatMode, OptimizeFor = RvoBurstSettings.OptimizeFor)]
+        internal static bool GreaterEqual(RvoVector2 a, RvoVector2 b)
         {
             return !Less(a, b);
         }

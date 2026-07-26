@@ -49,6 +49,11 @@
 
 namespace RVO
 {
+#if RVO2_DETERMINISTIC
+    internal class Blocks : FloatSampleModeGuard
+    {
+    }
+#else
     using System;
     using System.Collections;
     using System.Collections.Generic;
@@ -279,4 +284,5 @@ namespace RVO
             this.simulator.Dispose();
         }
     }
+#endif
 }

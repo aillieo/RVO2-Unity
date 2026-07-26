@@ -1,0 +1,18 @@
+{
+    "name": "RVO2.Samples.Deterministic",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Mathematics",
+        "RVO2",
+        "Fixed"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
